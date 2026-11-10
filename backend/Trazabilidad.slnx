@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Trazabilidad.Api/Trazabilidad.Api.csproj" />
+    <Project Path="src/Trazabilidad.Application/Trazabilidad.Application.csproj" />
+    <Project Path="src/Trazabilidad.Domain/Trazabilidad.Domain.csproj" />
+    <Project Path="src/Trazabilidad.Infrastructure/Trazabilidad.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Trazabilidad.Tests/Trazabilidad.Tests.csproj" />
+  </Folder>
+</Solution>
