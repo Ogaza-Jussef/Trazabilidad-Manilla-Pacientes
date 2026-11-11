@@ -14,10 +14,25 @@ builder.Logging.AddJsonConsole(opciones =>
 });
 
 builder.Services.AddSingleton(new OpcionesSeguridad(clave));
+builder.Services.AddCors(opciones =>
+{
+    opciones.AddDefaultPolicy(politica =>
+    {
+        politica.SetIsOriginAllowed(origen =>
+        {
+            if (!Uri.TryCreate(origen, UriKind.Absolute, out var uri))
+                return false;
+            return uri.Host is "localhost" or "127.0.0.1";
+        });
+        politica.AllowAnyHeader();
+        politica.AllowAnyMethod();
+    });
+});
 Composicion.Registrar(builder);
 
 var app = builder.Build();
 
+app.UseCors();
 app.UseMiddleware<RegistroSolicitudMiddleware>();
 app.UseMiddleware<ManejadorErroresMiddleware>();
 app.UseMiddleware<LlaveApiMiddleware>();

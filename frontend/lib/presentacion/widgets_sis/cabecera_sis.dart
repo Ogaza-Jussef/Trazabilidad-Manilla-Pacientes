@@ -13,6 +13,7 @@ class LogoSis extends StatelessWidget {
       height: alto,
       child: Image.asset(
         'assets/images/logo_sis.png',
+        package: 'trazabilidad_manillas',
         fit: BoxFit.contain,
         alignment: Alignment.center,
         semanticLabel: 'SIS Servicios Integrales en Sistemas',

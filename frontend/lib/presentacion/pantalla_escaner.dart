@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -33,7 +31,9 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
   var _ocupado = false;
   String? _error;
 
-  bool get _conCamara => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _conCamara =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   void dispose() {

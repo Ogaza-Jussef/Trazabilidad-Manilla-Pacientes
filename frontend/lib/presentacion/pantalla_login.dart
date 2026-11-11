@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../datos/ajustes_puesto.dart';
@@ -17,7 +18,7 @@ class PantallaLogin extends StatefulWidget {
 }
 
 class _PantallaLoginState extends State<PantallaLogin> {
-  static const _urlApi = 'http://10.0.2.2:5080';
+  static String get _urlApi => kIsWeb ? 'http://localhost:5080' : 'http://10.0.2.2:5080';
 
   final _usuario = TextEditingController();
   final _contrasena = TextEditingController();

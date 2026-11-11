@@ -110,7 +110,16 @@ Dirección del servidor según el dispositivo:
 | Teléfono en la misma red | `http://IP-DEL-PC:5080` |
 | Misma máquina | `http://localhost:5080` |
 
-La app del emulador llama a la API local en `http://10.0.2.2:5080`. El servidor que elige el operador sale de Campbell y se muestra solo por nombre, por ejemplo Campbell o Bahia. Las empresas se ven como `C30 - Fundacion Campbell`.
+La app del emulador llama a la API local en `http://10.0.2.2:5080`. En el navegador usa `http://localhost:5080`. El servidor que elige el operador sale de Campbell y se muestra solo por nombre, por ejemplo Campbell o Bahia. Las empresas se ven como `C30 - Fundacion Campbell`.
+
+Web. El proyecto está en `frontend_web` y usa las mismas pantallas. Primero arranca la API; el navegador solo puede hablar con `localhost`.
+
+```powershell
+dotnet run --project backend/src/Trazabilidad.Api --launch-profile http
+cd frontend_web
+flutter pub get
+flutter run -d chrome
+```
 
 ### Datos de desarrollo
 
