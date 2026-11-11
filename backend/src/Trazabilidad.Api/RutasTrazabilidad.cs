@@ -10,6 +10,8 @@ public static class RutasTrazabilidad
     {
         var grupo = app.MapGroup("/api/v1");
 
+        grupo.MapPost("/sesiones", IniciarSesionAsync);
+
         grupo.MapGet("/servicios", () =>
         {
             var items = ServiciosLectura.Orden
@@ -22,6 +24,38 @@ public static class RutasTrazabilidad
         grupo.MapGet("/trazabilidad", ListarAsync);
         grupo.MapGet("/trazabilidad/{id:long}", ObtenerAsync);
         grupo.MapPost("/trazabilidad", RegistrarAsync);
+    }
+
+    private static async Task<IResult> IniciarSesionAsync(
+        HttpContext contexto,
+        JsonSerializerOptions json,
+        IniciarSesion casoUso,
+        CancellationToken cancelacion)
+    {
+        InicioSesionRequest? solicitud;
+        try
+        {
+            solicitud = await contexto.Request.ReadFromJsonAsync<InicioSesionRequest>(json, cancelacion);
+        }
+        catch (JsonException)
+        {
+            throw new ErrorValidacion(
+                "El cuerpo JSON no es válido.",
+                new DetalleValidacion("body", "json"));
+        }
+
+        if (solicitud is null)
+        {
+            throw new ErrorValidacion(
+                "El cuerpo JSON no es válido.",
+                new DetalleValidacion("body", "json"));
+        }
+
+        var sesion = await casoUso.Ejecutar(solicitud.Usuario, solicitud.Contrasena, cancelacion);
+        return Results.Ok(new SesionResponse(
+            sesion.Token,
+            sesion.Usuario,
+            sesion.Empresas.Select(empresa => new EmpresaResponse(empresa.Codigo, empresa.Nombre)).ToArray()));
     }
 
     private static async Task<IResult> ConsultarPacienteAsync(

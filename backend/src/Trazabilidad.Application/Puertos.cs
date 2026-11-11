@@ -2,6 +2,24 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Application;
 
+public sealed record Empresa(string Codigo, string Nombre);
+
+public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas);
+
+public sealed record SesionActiva(string Token, string Usuario, IReadOnlyList<Empresa> Empresas);
+
+public interface IDirectorioUsuarios
+{
+    Task<UsuarioAutenticado?> Autenticar(string usuario, string contrasena, CancellationToken cancelacion);
+}
+
+public interface IAlmacenSesiones
+{
+    SesionActiva Crear(UsuarioAutenticado usuario);
+
+    SesionActiva? Obtener(string token);
+}
+
 public interface IConsultaPacientes
 {
     Task<Paciente?> Obtener(string codigoEmpresa, string numeroCaso, CancellationToken cancelacion);

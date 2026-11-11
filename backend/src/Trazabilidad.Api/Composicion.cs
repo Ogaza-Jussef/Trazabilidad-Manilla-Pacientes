@@ -42,6 +42,13 @@ public static class Composicion
             });
         }
 
+        if (builder.Environment.IsProduction())
+            builder.Services.AddSingleton<IDirectorioUsuarios, DirectorioUsuariosPendiente>();
+        else
+            builder.Services.AddSingleton<IDirectorioUsuarios, DirectorioUsuariosMemoria>();
+
+        builder.Services.AddSingleton<IAlmacenSesiones, AlmacenSesionesMemoria>();
+        builder.Services.AddSingleton<IniciarSesion>();
         builder.Services.AddSingleton<RegistrarLectura>();
         builder.Services.AddSingleton<ConsultarPaciente>();
         builder.Services.AddSingleton<ListarTrazabilidad>();

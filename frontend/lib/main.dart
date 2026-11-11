@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'datos/ajustes_puesto.dart';
 import 'presentacion/pantalla_escaner.dart';
-import 'presentacion/pantalla_puesto.dart';
+import 'presentacion/pantalla_login.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,15 +66,21 @@ class _PantallaInicioState extends State<PantallaInicio> {
     }
     final ajustes = _ajustes;
     if (ajustes == null) {
-      return PantallaPuesto(
+      return PantallaLogin(
         almacen: _almacen,
         alGuardar: (nuevos) => setState(() => _ajustes = nuevos),
       );
     }
     return PantallaEscaner(
       ajustes: ajustes,
-      almacen: _almacen,
-      alGuardar: (nuevos) => setState(() => _ajustes = nuevos),
+      alGuardar: (nuevos) async {
+        await _almacen.guardar(nuevos);
+        if (mounted) setState(() => _ajustes = nuevos);
+      },
+      alSalir: () async {
+        await _almacen.borrar();
+        if (mounted) setState(() => _ajustes = null);
+      },
     );
   }
 }

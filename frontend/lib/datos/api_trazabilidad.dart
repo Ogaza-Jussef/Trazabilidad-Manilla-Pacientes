@@ -29,14 +29,34 @@ class ApiTrazabilidad {
   final http.Client _cliente;
 
   Map<String, String> get _encabezados => {
-        'Authorization': 'Bearer ${ajustes.claveApi}',
+        'Authorization': 'Bearer ${ajustes.token}',
         'Accept': 'application/json',
+        'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
+
+  Future<ResultadoApi<Ingreso>> iniciarSesion({
+    required String servidor,
+    required String usuario,
+    required String contrasena,
+  }) async {
+    final base = _sinBarra(servidor);
+    final uri = Uri.parse('$base/api/v1/sesiones');
+    return _enviar(
+      () => _cliente
+          .post(
+            uri,
+            headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
+            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena}),
+          )
+          .timeout(const Duration(seconds: 10)),
+      (json, estado) => Ingreso.desdeJson(json),
+    );
+  }
 
   Future<ResultadoApi<void>> probarConexion() async {
     try {
       final respuesta = await _cliente
-          .get(Uri.parse('${ajustes.urlBase}/health'), headers: const {'Accept': 'application/json'})
+          .get(Uri.parse('${_sinBarra(ajustes.baseUrl)}/health'), headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 10));
       if (respuesta.statusCode != 200) {
         return FalloApi('La API respondió ${respuesta.statusCode}.', respuesta.statusCode);
@@ -119,7 +139,12 @@ class ApiTrazabilidad {
     } on TimeoutException {
       return FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
-      return FalloApi('No se pudo conectar con la API.', 0);
+      return FalloApi('No se pudo conectar con el servidor.', 0);
     }
+  }
+
+  static String _sinBarra(String servidor) {
+    final texto = servidor.trim();
+    return texto.endsWith('/') ? texto.substring(0, texto.length - 1) : texto;
   }
 }

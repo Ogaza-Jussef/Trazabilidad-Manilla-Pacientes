@@ -24,6 +24,14 @@ public sealed class ErrorValidacion : ErrorDominio
     public IReadOnlyList<DetalleValidacion> Detalles { get; }
 }
 
+public sealed class ErrorNoAutenticado : ErrorDominio
+{
+    public ErrorNoAutenticado(string mensaje)
+        : base("unauthenticated", mensaje)
+    {
+    }
+}
+
 public sealed class ErrorNoEncontrado : ErrorDominio
 {
     public ErrorNoEncontrado(string mensaje)

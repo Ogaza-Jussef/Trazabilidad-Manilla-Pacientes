@@ -20,6 +20,11 @@ public sealed class ManejadorErroresMiddleware
         {
             await _siguiente(contexto);
         }
+        catch (ErrorNoAutenticado ex)
+        {
+            await ResultadosError.Crear(contexto, StatusCodes.Status401Unauthorized, ex.Codigo, ex.Message)
+                .ExecuteAsync(contexto);
+        }
         catch (ErrorValidacion ex)
         {
             await ResultadosError.Crear(contexto, StatusCodes.Status400BadRequest, ex.Codigo, ex.Message, ex.Detalles)

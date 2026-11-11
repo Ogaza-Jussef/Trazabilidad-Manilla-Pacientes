@@ -14,13 +14,13 @@ class PantallaEscaner extends StatefulWidget {
   const PantallaEscaner({
     super.key,
     required this.ajustes,
-    required this.almacen,
     required this.alGuardar,
+    required this.alSalir,
   });
 
   final AjustesPuesto ajustes;
-  final AlmacenAjustes almacen;
-  final void Function(AjustesPuesto ajustes) alGuardar;
+  final Future<void> Function(AjustesPuesto ajustes) alGuardar;
+  final Future<void> Function() alSalir;
 
   @override
   State<PantallaEscaner> createState() => _PantallaEscanerState();
@@ -43,7 +43,6 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => PantallaPuesto(
-          almacen: widget.almacen,
           iniciales: widget.ajustes,
           alGuardar: widget.alGuardar,
         ),
@@ -56,6 +55,10 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
     final codigo = CodigoManilla.leer(_codigo.text);
     if (codigo == null) {
       setState(() => _error = 'El código debe tener la forma C30-100001.');
+      return;
+    }
+    if (codigo.codigoEmpresa != widget.ajustes.codigoEmpresa) {
+      setState(() => _error = 'Esta manilla es de ${codigo.codigoEmpresa}. El puesto está en ${widget.ajustes.nombreEmpresa}.');
       return;
     }
 
@@ -92,14 +95,16 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
       appBar: AppBar(
         title: const Text('Leer manilla'),
         actions: [
-          TextButton(onPressed: _ocupado ? null : _cambiarPuesto, child: const Text('Puesto')),
+          TextButton(onPressed: _ocupado ? null : _cambiarPuesto, child: const Text('Servicio')),
+          TextButton(onPressed: _ocupado ? null : widget.alSalir, child: const Text('Salir')),
         ],
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(widget.ajustes.servicio, style: Theme.of(context).textTheme.titleLarge),
+            Text(widget.ajustes.nombreEmpresa, style: Theme.of(context).textTheme.titleLarge),
+            Text('${widget.ajustes.codigoEmpresa} · ${widget.ajustes.servicio}'),
             const SizedBox(height: 8),
             Text(
               'Apunta la cámara al QR o escribe el código. La empresa y el caso van separados por un guion.',

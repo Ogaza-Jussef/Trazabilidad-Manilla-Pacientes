@@ -4,9 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var clave = builder.Configuration["Trazabilidad:ApiKey"];
 if (string.IsNullOrWhiteSpace(clave))
-    clave = Environment.GetEnvironmentVariable("TRAZABILIDAD_API_KEY");
-if (string.IsNullOrWhiteSpace(clave))
-    throw new InvalidOperationException("Define la variable TRAZABILIDAD_API_KEY antes de iniciar la API.");
+    clave = Environment.GetEnvironmentVariable("TRAZABILIDAD_API_KEY") ?? "";
 
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(opciones =>
