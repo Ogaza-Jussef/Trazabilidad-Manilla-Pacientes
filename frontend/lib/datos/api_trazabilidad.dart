@@ -34,21 +34,36 @@ class ApiTrazabilidad {
         'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
 
+  Future<ResultadoApi<List<String>>> listarServidores() async {
+    final uri = Uri.parse('${ajustes.urlBase}/api/v1/servidores');
+    return _enviar(
+      () => _cliente.get(uri, headers: const {'Accept': 'application/json'}).timeout(const Duration(seconds: 20)),
+      (json, estado) {
+        final items = json['items'];
+        if (items is! List) return const <String>[];
+        return items
+            .whereType<Map<String, dynamic>>()
+            .map((item) => item['nombre'] as String? ?? '')
+            .where((nombre) => nombre.isNotEmpty)
+            .toList();
+      },
+    );
+  }
+
   Future<ResultadoApi<Ingreso>> iniciarSesion({
-    required String servidor,
     required String usuario,
     required String contrasena,
+    required String servidor,
   }) async {
-    final base = _sinBarra(servidor);
-    final uri = Uri.parse('$base/api/v1/sesiones');
+    final uri = Uri.parse('${ajustes.urlBase}/api/v1/sesiones');
     return _enviar(
       () => _cliente
           .post(
             uri,
             headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
-            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena}),
+            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena, 'servidor': servidor}),
           )
-          .timeout(const Duration(seconds: 10)),
+          .timeout(const Duration(seconds: 20)),
       (json, estado) => Ingreso.desdeJson(json),
     );
   }

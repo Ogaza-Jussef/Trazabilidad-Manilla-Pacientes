@@ -4,7 +4,7 @@ using Trazabilidad.Application;
 
 namespace Trazabilidad.Infrastructure.Memoria;
 
-public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios
+public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores
 {
     private readonly UsuarioAutenticado _usuario;
     private readonly byte[] _contrasena;
@@ -15,8 +15,18 @@ public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios
         _contrasena = Encoding.UTF8.GetBytes(SemillaDesarrollo.Contrasena);
     }
 
-    public Task<UsuarioAutenticado?> Autenticar(string usuario, string contrasena, CancellationToken cancelacion)
+    public Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion) =>
+        Task.FromResult<IReadOnlyList<ServidorPublico>>([new ServidorPublico("Desarrollo")]);
+
+    public Task<UsuarioAutenticado?> Autenticar(
+        string usuario,
+        string contrasena,
+        string servidor,
+        CancellationToken cancelacion)
     {
+        if (servidor.Length == 0)
+            return Task.FromResult<UsuarioAutenticado?>(null);
+
         var nombre = Encoding.UTF8.GetBytes(usuario);
         var esperado = Encoding.UTF8.GetBytes(_usuario.Usuario);
         var clave = Encoding.UTF8.GetBytes(contrasena);

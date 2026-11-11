@@ -8,6 +8,20 @@ namespace Trazabilidad.Tests;
 public class SesionPruebas
 {
     [Fact]
+    public async Task Debe_listar_solo_el_nombre_del_servidor()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+
+        var respuesta = await cliente.GetAsync("/api/v1/servidores");
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        var json = await Leer(respuesta);
+        Assert.Equal("Desarrollo", json.GetProperty("items")[0].GetProperty("nombre").GetString());
+        Assert.DoesNotContain("Ip", json.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Debe_devolver_las_empresas_del_usuario()
     {
         await using var fabrica = new FabricaApi();
@@ -17,6 +31,7 @@ public class SesionPruebas
         {
             usuario = "operador",
             contrasena = "operador",
+            servidor = "Desarrollo",
         });
 
         Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
@@ -37,6 +52,7 @@ public class SesionPruebas
         {
             usuario = "operador",
             contrasena = "otra",
+            servidor = "Desarrollo",
         });
 
         Assert.Equal(HttpStatusCode.Unauthorized, respuesta.StatusCode);
@@ -52,6 +68,7 @@ public class SesionPruebas
         {
             usuario = "operador",
             contrasena = "operador",
+            servidor = "Desarrollo",
         });
         var token = (await Leer(ingreso)).GetProperty("token").GetString();
 

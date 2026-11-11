@@ -3,9 +3,16 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed class DirectorioUsuariosPendiente : IDirectorioUsuarios
+public sealed class DirectorioUsuariosPendiente : IDirectorioUsuarios, ICatalogoServidores
 {
-    public Task<UsuarioAutenticado?> Autenticar(string usuario, string contrasena, CancellationToken cancelacion)
+    public Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion) =>
+        throw new ErrorDependencia("La conexión al directorio de usuarios está pendiente.");
+
+    public Task<UsuarioAutenticado?> Autenticar(
+        string usuario,
+        string contrasena,
+        string servidor,
+        CancellationToken cancelacion)
     {
         throw new ErrorDependencia("La conexión al directorio de usuarios está pendiente.");
     }

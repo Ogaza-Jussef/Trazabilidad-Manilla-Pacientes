@@ -18,6 +18,7 @@ public sealed class FabricaApi : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("TRAZABILIDAD_API_KEY", "test-key");
         Environment.SetEnvironmentVariable("Almacen", Almacen);
         Environment.SetEnvironmentVariable("SistemaActual__BaseUrl", "");
+        Environment.SetEnvironmentVariable("Campbell__BaseUrl", "");
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         return base.CreateHost(builder);
     }

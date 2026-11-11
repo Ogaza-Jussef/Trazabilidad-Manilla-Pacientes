@@ -29,11 +29,15 @@ public sealed record EmpresaResponse(string Codigo, string Nombre);
 
 public sealed record SesionResponse(string Token, string Usuario, IReadOnlyList<EmpresaResponse> Empresas);
 
+public sealed record ServidorPublicoResponse(string Nombre);
+
 public sealed class InicioSesionRequest
 {
     public string? Usuario { get; set; }
 
     public string? Contrasena { get; set; }
+
+    public string? Servidor { get; set; }
 }
 
 public sealed class CrearTrazabilidadRequest

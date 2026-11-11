@@ -4,13 +4,24 @@ namespace Trazabilidad.Application;
 
 public sealed record Empresa(string Codigo, string Nombre);
 
+public sealed record ServidorPublico(string Nombre);
+
 public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas);
 
 public sealed record SesionActiva(string Token, string Usuario, IReadOnlyList<Empresa> Empresas);
 
 public interface IDirectorioUsuarios
 {
-    Task<UsuarioAutenticado?> Autenticar(string usuario, string contrasena, CancellationToken cancelacion);
+    Task<UsuarioAutenticado?> Autenticar(
+        string usuario,
+        string contrasena,
+        string servidor,
+        CancellationToken cancelacion);
+}
+
+public interface ICatalogoServidores
+{
+    Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion);
 }
 
 public interface IAlmacenSesiones

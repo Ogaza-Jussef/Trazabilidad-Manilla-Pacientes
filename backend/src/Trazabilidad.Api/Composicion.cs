@@ -42,10 +42,29 @@ public static class Composicion
             });
         }
 
-        if (builder.Environment.IsProduction())
-            builder.Services.AddSingleton<IDirectorioUsuarios, DirectorioUsuariosPendiente>();
+        var campbell = builder.Configuration["Campbell:BaseUrl"];
+        if (!string.IsNullOrWhiteSpace(campbell))
+        {
+            builder.Services.AddHttpClient<DirectorioCampbell>(cliente =>
+            {
+                cliente.BaseAddress = new Uri(campbell.TrimEnd('/') + "/");
+                cliente.Timeout = TimeSpan.FromSeconds(20);
+            });
+            builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioCampbell>());
+            builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioCampbell>());
+        }
+        else if (builder.Environment.IsProduction())
+        {
+            builder.Services.AddSingleton<DirectorioUsuariosPendiente>();
+            builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
+            builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
+        }
         else
-            builder.Services.AddSingleton<IDirectorioUsuarios, DirectorioUsuariosMemoria>();
+        {
+            builder.Services.AddSingleton<DirectorioUsuariosMemoria>();
+            builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
+            builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
+        }
 
         builder.Services.AddSingleton<IAlmacenSesiones, AlmacenSesionesMemoria>();
         builder.Services.AddSingleton<IniciarSesion>();

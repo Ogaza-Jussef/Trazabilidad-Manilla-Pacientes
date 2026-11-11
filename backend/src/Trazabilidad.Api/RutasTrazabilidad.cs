@@ -10,6 +10,7 @@ public static class RutasTrazabilidad
     {
         var grupo = app.MapGroup("/api/v1");
 
+        grupo.MapGet("/servidores", ListarServidoresAsync);
         grupo.MapPost("/sesiones", IniciarSesionAsync);
 
         grupo.MapGet("/servicios", () =>
@@ -51,11 +52,22 @@ public static class RutasTrazabilidad
                 new DetalleValidacion("body", "json"));
         }
 
-        var sesion = await casoUso.Ejecutar(solicitud.Usuario, solicitud.Contrasena, cancelacion);
+        var sesion = await casoUso.Ejecutar(solicitud.Usuario, solicitud.Contrasena, solicitud.Servidor, cancelacion);
         return Results.Ok(new SesionResponse(
             sesion.Token,
             sesion.Usuario,
             sesion.Empresas.Select(empresa => new EmpresaResponse(empresa.Codigo, empresa.Nombre)).ToArray()));
+    }
+
+    private static async Task<IResult> ListarServidoresAsync(
+        ICatalogoServidores catalogo,
+        CancellationToken cancelacion)
+    {
+        var servidores = await catalogo.Listar(cancelacion);
+        return Results.Ok(new
+        {
+            items = servidores.Select(servidor => new ServidorPublicoResponse(servidor.Nombre)).ToArray(),
+        });
     }
 
     private static async Task<IResult> ConsultarPacienteAsync(

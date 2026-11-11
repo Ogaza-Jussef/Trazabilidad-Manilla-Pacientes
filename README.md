@@ -6,7 +6,7 @@ La impresión de la manilla ocurre cuando el sistema abre el caso. Esa impresió
 
 ## Flujo de la app
 
-1. El operador escribe usuario, contraseña y la dirección del servidor.
+1. El operador escribe usuario y contraseña, y elige el servidor por su nombre. La app no muestra la IP.
 2. La API devuelve las empresas asociadas a ese usuario.
 3. El operador elige una empresa y el servicio del puesto.
 4. Escanea el QR o lo escribe a mano.
@@ -110,7 +110,7 @@ Dirección del servidor según el dispositivo:
 | Teléfono en la misma red | `http://IP-DEL-PC:5080` |
 | Misma máquina | `http://localhost:5080` |
 
-La pantalla de ingreso ya trae `http://10.0.2.2:5080`.
+La app del emulador llama a la API local en `http://10.0.2.2:5080`. El servidor que elige el operador sale de Campbell y se muestra solo por nombre, por ejemplo Campbell o Bahia. Las empresas se ven como `C30 - Fundacion Campbell`.
 
 ### Datos de desarrollo
 
@@ -127,7 +127,11 @@ Ese usuario y esa contraseña solo sirven para probar en local. No existen en Pr
 
 Prefijo `/api/v1`. JSON en camelCase. Las propiedades desconocidas se rechazan. `Cache-Control: no-store`.
 
-Rutas públicas: `GET /health`, `GET /health/ready` y `POST /api/v1/sesiones`.
+Rutas públicas: `GET /health`, `GET /health/ready`, `GET /api/v1/servidores` y `POST /api/v1/sesiones`.
+
+`GET /api/v1/servidores` devuelve `{ "items": [{ "nombre": "Campbell" }] }`. No incluye IP ni datos de conexión.
+
+`Campbell:BaseUrl` en `appsettings.json` apunta a ApiCampbell. Con esa dirección, el ingreso pide el token y después las empresas del usuario. Si la dirección está vacía, en desarrollo sigue el usuario local.
 
 El resto pide `Authorization: Bearer {token}`. En pacientes y trazabilidad, si el token es de sesión, también pide `X-Codigo-Empresa` y ese código tiene que estar entre las empresas del usuario. Una clave de API, si está configurada, entra sin esa comprobación de empresa.
 
@@ -138,7 +142,7 @@ Al registrar, `X-Servicio-Puesto` tiene que ser igual al `servicio` del cuerpo.
 `POST /api/v1/sesiones`
 
 ```json
-{ "usuario": "operador", "contrasena": "operador" }
+{ "usuario": "operador", "contrasena": "operador", "servidor": "Desarrollo" }
 ```
 
 Respuesta 200:
