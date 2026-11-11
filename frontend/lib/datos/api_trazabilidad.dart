@@ -34,20 +34,35 @@ class ApiTrazabilidad {
         'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
 
+  static final Uri _servidoresCampbell = Uri.parse(
+    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-servidores',
+  );
+
   Future<ResultadoApi<List<String>>> listarServidores() async {
-    final uri = Uri.parse('${ajustes.urlBase}/api/v1/servidores');
-    return _enviar(
-      () => _cliente.get(uri, headers: const {'Accept': 'application/json'}).timeout(const Duration(seconds: 20)),
-      (json, estado) {
-        final items = json['items'];
-        if (items is! List) return const <String>[];
-        return items
-            .whereType<Map<String, dynamic>>()
-            .map((item) => item['nombre'] as String? ?? '')
-            .where((nombre) => nombre.isNotEmpty)
-            .toList();
-      },
-    );
+    try {
+      final respuesta = await _cliente
+          .get(_servidoresCampbell, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 20));
+      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
+        return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
+      }
+      final decodificado = jsonDecode(respuesta.body);
+      if (decodificado is! List) {
+        return const FalloApi('La lista de servidores no se pudo leer.', 0);
+      }
+      final nombres = decodificado
+          .whereType<Map>()
+          .map((item) => (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim())
+          .where((nombre) => nombre.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      return OkApi(nombres, respuesta.statusCode);
+    } on TimeoutException {
+      return const FalloApi('La API no respondió a tiempo.', 0);
+    } catch (_) {
+      return const FalloApi('No se pudo conectar con el servidor.', 0);
+    }
   }
 
   Future<ResultadoApi<Ingreso>> iniciarSesion({

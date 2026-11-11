@@ -21,21 +21,32 @@ class _PantallaLoginState extends State<PantallaLogin> {
 
   final _usuario = TextEditingController();
   final _contrasena = TextEditingController();
+  final _focoUsuario = FocusNode();
+  final _focoContrasena = FocusNode();
   var _servidores = const <String>[];
   String? _servidor;
+  String? _usuarioCargado;
   var _ocultar = true;
-  var _cargandoServidores = true;
+  var _cargandoServidores = false;
+  var _intentoServidores = false;
   var _ocupado = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _cargarServidores();
+    _focoUsuario.addListener(() {
+      if (!_focoUsuario.hasFocus) _alDejarUsuario();
+    });
+    _focoContrasena.addListener(() {
+      if (_focoContrasena.hasFocus) _alDejarUsuario();
+    });
   }
 
   @override
   void dispose() {
+    _focoUsuario.dispose();
+    _focoContrasena.dispose();
     _usuario.dispose();
     _contrasena.dispose();
     super.dispose();
@@ -50,13 +61,37 @@ class _PantallaLoginState extends State<PantallaLogin> {
         servicio: 'Colocación de manilla',
       ));
 
+  Future<void> _alDejarUsuario() async {
+    final usuario = _usuario.text.trim();
+    if (usuario.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _servidores = const [];
+        _servidor = null;
+        _usuarioCargado = null;
+        _intentoServidores = false;
+        _cargandoServidores = false;
+      });
+      return;
+    }
+    if (_cargandoServidores || _usuarioCargado == usuario) return;
+    _usuarioCargado = usuario;
+    await _cargarServidores();
+  }
+
   Future<void> _cargarServidores() async {
+    final usuario = _usuario.text.trim();
+    if (usuario.isEmpty) {
+      setState(() => _error = 'Escribe el usuario para ver los servidores.');
+      return;
+    }
     setState(() {
       _cargandoServidores = true;
+      _intentoServidores = true;
       _error = null;
     });
     final resultado = await _api.listarServidores();
-    if (!mounted) return;
+    if (!mounted || _usuario.text.trim() != usuario) return;
     switch (resultado) {
       case OkApi(valor: final nombres):
         setState(() {
@@ -157,27 +192,28 @@ class _PantallaLoginState extends State<PantallaLogin> {
                         const SizedBox(height: 24),
                         TextField(
                           controller: _usuario,
+                          focusNode: _focoUsuario,
                           textInputAction: TextInputAction.next,
                           autocorrect: false,
                           decoration: const InputDecoration(labelText: 'Usuario'),
+                          onChanged: (valor) {
+                            if (_usuarioCargado != null && valor.trim() != _usuarioCargado) {
+                              setState(() {
+                                _servidores = const [];
+                                _servidor = null;
+                                _usuarioCargado = null;
+                                _intentoServidores = false;
+                              });
+                            }
+                          },
+                          onEditingComplete: _alDejarUsuario,
                         ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _contrasena,
-                          obscureText: _ocultar,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: 'Contraseña',
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(() => _ocultar = !_ocultar),
-                              icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_cargandoServidores)
-                          const BarraProgresoSis()
-                        else
+                        if (_cargandoServidores) ...[
+                          const SizedBox(height: 16),
+                          const BarraProgresoSis(),
+                        ],
+                        if (_intentoServidores && !_cargandoServidores) ...[
+                          const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
                             // El valor controlado se limpia si el servidor deja de existir.
                             // ignore: deprecated_member_use
@@ -188,6 +224,21 @@ class _PantallaLoginState extends State<PantallaLogin> {
                             ],
                             onChanged: _ocupado ? null : (valor) => setState(() => _servidor = valor),
                           ),
+                        ],
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _contrasena,
+                          focusNode: _focoContrasena,
+                          obscureText: _ocultar,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            suffixIcon: IconButton(
+                              onPressed: () => setState(() => _ocultar = !_ocultar),
+                              icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                            ),
+                          ),
+                        ),
                         if (_error != null) ...[
                           const SizedBox(height: 16),
                           MensajeErrorSis(mensaje: _error!),
@@ -198,7 +249,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                           ocupado: _ocupado,
                           onPressed: _ocupado || _cargandoServidores ? null : _entrar,
                         ),
-                        if (!_cargandoServidores && _servidores.isEmpty) ...[
+                        if (_intentoServidores && !_cargandoServidores && _servidores.isEmpty) ...[
                           const SizedBox(height: 12),
                           BotonSis(
                             texto: 'Reintentar servidores',
