@@ -152,9 +152,9 @@ class ApiTrazabilidad {
           : 'No se pudo completar la operación.';
       return FalloApi(mensaje, respuesta.statusCode);
     } on TimeoutException {
-      return FalloApi('La API no respondió a tiempo.', 0);
+      return const FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
-      return FalloApi('No se pudo conectar con el servidor.', 0);
+      return const FalloApi('No se pudo conectar con el servidor.', 0);
     }
   }
 

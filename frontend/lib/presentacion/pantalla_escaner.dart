@@ -7,8 +7,10 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../datos/ajustes_puesto.dart';
 import '../datos/api_trazabilidad.dart';
 import '../dominio/codigo_manilla.dart';
+import '../tema/tema_sis.dart';
 import 'pantalla_confirmacion.dart';
 import 'pantalla_puesto.dart';
+import 'widgets_sis/widgets_sis.dart';
 
 class PantallaEscaner extends StatefulWidget {
   const PantallaEscaner({
@@ -91,66 +93,104 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leer manilla'),
-        actions: [
-          TextButton(onPressed: _ocupado ? null : _cambiarPuesto, child: const Text('Servicio')),
-          TextButton(onPressed: _ocupado ? null : widget.alSalir, child: const Text('Salir')),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(widget.ajustes.nombreEmpresa, style: Theme.of(context).textTheme.titleLarge),
-            Text('${widget.ajustes.codigoEmpresa} · ${widget.ajustes.servicio}'),
-            const SizedBox(height: 8),
-            Text(
-              'Apunta la cámara al QR o escribe el código. La empresa y el caso van separados por un guion.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            if (_conCamara) ...[
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  height: 240,
-                  child: MobileScanner(
-                    onDetect: (captura) {
-                      if (_ocupado || captura.barcodes.isEmpty) return;
-                      final valor = captura.barcodes.first.rawValue;
-                      if (valor == null || valor.isEmpty) return;
-                      _codigo.text = valor;
-                      _continuar();
-                    },
-                  ),
-                ),
+    return FondoSis(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          toolbarHeight: 72,
+          title: const CabeceraSis(titulo: 'Leer manilla', compacta: true),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: BotonSis(
+                texto: 'Servicio',
+                variante: VarianteBotonSis.normal,
+                compacto: true,
+                onPressed: _ocupado ? null : _cambiarPuesto,
               ),
-            ],
-            const SizedBox(height: 24),
-            TextField(
-              controller: _codigo,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Código QR',
-                hintText: 'C30-100001',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => _ocupado ? null : _continuar(),
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _ocupado ? null : _continuar,
-              child: Text(_ocupado ? 'Consultando...' : 'Consultar paciente'),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 12, top: 12, bottom: 12),
+              child: BotonSis(
+                texto: 'Salir',
+                variante: VarianteBotonSis.peligro,
+                compacto: true,
+                onPressed: _ocupado ? null : widget.alSalir,
+              ),
             ),
           ],
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              PanelSis(
+                difuminar: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.ajustes.nombreEmpresa, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.ajustes.codigoEmpresa} · ${widget.ajustes.servicio}',
+                      style: FuentesSis.inter(color: ColoresSis.suave),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Apunta la cámara al QR o escribe el código. La empresa y el caso van separados por un guion.',
+                style: FuentesSis.inter(tamano: 14, color: ColoresSis.suave),
+              ),
+              if (_conCamara) ...[
+                const SizedBox(height: 16),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: ColoresSis.linea),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: SizedBox(
+                      height: 240,
+                      child: MobileScanner(
+                        onDetect: (captura) {
+                          if (_ocupado || captura.barcodes.isEmpty) return;
+                          final valor = captura.barcodes.first.rawValue;
+                          if (valor == null || valor.isEmpty) return;
+                          _codigo.text = valor;
+                          _continuar();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              TextField(
+                controller: _codigo,
+                textCapitalization: TextCapitalization.characters,
+                style: FuentesSis.mono(),
+                decoration: const InputDecoration(
+                  labelText: 'Código QR',
+                  hintText: 'C30-100001',
+                ),
+                onSubmitted: (_) => _ocupado ? null : _continuar(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                MensajeErrorSis(mensaje: _error!),
+              ],
+              const SizedBox(height: 20),
+              BotonSis(
+                texto: _ocupado ? 'Consultando...' : 'Consultar paciente',
+                ocupado: _ocupado,
+                onPressed: _ocupado ? null : _continuar,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'datos/ajustes_puesto.dart';
 import 'presentacion/pantalla_escaner.dart';
 import 'presentacion/pantalla_login.dart';
+import 'presentacion/widgets_sis/widgets_sis.dart';
+import 'tema/tema_sis.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,19 +16,9 @@ class TrazabilidadApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final esquema = ColorScheme.fromSeed(seedColor: const Color(0xFF0B6E4F));
     return MaterialApp(
       title: 'Trazabilidad de manillas',
-      theme: ThemeData(
-        colorScheme: esquema,
-        useMaterial3: true,
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-        ),
-      ),
+      theme: TemaSis.claro,
       home: const PantallaInicio(),
     );
   }
@@ -62,7 +54,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
   @override
   Widget build(BuildContext context) {
     if (!_listo) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const FondoSis(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(child: SpinnerSis(tamano: 42)),
+        ),
+      );
     }
     final ajustes = _ajustes;
     if (ajustes == null) {

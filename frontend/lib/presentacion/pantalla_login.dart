@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../datos/ajustes_puesto.dart';
 import '../datos/api_trazabilidad.dart';
+import '../tema/tema_sis.dart';
 import 'pantalla_empresas.dart';
+import 'widgets_sis/widgets_sis.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key, required this.almacen, required this.alGuardar});
@@ -118,73 +120,99 @@ class _PantallaLoginState extends State<PantallaLogin> {
 
   @override
   Widget build(BuildContext context) {
-    final colores = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
-          children: [
-            Text('Trazabilidad de manillas', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: colores.primary)),
-            const SizedBox(height: 8),
-            Text('Ingreso', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Entra con tu usuario para ver las empresas asignadas.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: colores.onSurfaceVariant),
-            ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _usuario,
-              textInputAction: TextInputAction.next,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Usuario',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _contrasena,
-              obscureText: _ocultar,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: 'Contraseña',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  onPressed: () => setState(() => _ocultar = !_ocultar),
-                  icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+    return FondoSis(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            children: [
+              Align(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: PanelSis(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const LogoSis(alto: 100),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Trazabilidad de manillas',
+                          textAlign: TextAlign.center,
+                          style: FuentesSis.inter(
+                            tamano: 16,
+                            peso: FontWeight.w500,
+                            color: ColoresSis.suave,
+                            estilo: FontStyle.italic,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Ingreso', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Entra con tu usuario para ver las empresas asignadas.',
+                          textAlign: TextAlign.center,
+                          style: FuentesSis.inter(color: ColoresSis.suave),
+                        ),
+                        const SizedBox(height: 24),
+                        TextField(
+                          controller: _usuario,
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          decoration: const InputDecoration(labelText: 'Usuario'),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _contrasena,
+                          obscureText: _ocultar,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            suffixIcon: IconButton(
+                              onPressed: () => setState(() => _ocultar = !_ocultar),
+                              icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_cargandoServidores)
+                          const BarraProgresoSis()
+                        else
+                          DropdownButtonFormField<String>(
+                            // El valor controlado se limpia si el servidor deja de existir.
+                            // ignore: deprecated_member_use
+                            value: _servidor,
+                            decoration: const InputDecoration(labelText: 'Servidor'),
+                            items: [
+                              for (final nombre in _servidores) DropdownMenuItem(value: nombre, child: Text(nombre)),
+                            ],
+                            onChanged: _ocupado ? null : (valor) => setState(() => _servidor = valor),
+                          ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          MensajeErrorSis(mensaje: _error!),
+                        ],
+                        const SizedBox(height: 24),
+                        BotonSis(
+                          texto: _ocupado ? 'Entrando...' : 'Entrar',
+                          ocupado: _ocupado,
+                          onPressed: _ocupado || _cargandoServidores ? null : _entrar,
+                        ),
+                        if (!_cargandoServidores && _servidores.isEmpty) ...[
+                          const SizedBox(height: 12),
+                          BotonSis(
+                            texto: 'Reintentar servidores',
+                            variante: VarianteBotonSis.normal,
+                            onPressed: _cargarServidores,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            if (_cargandoServidores)
-              const LinearProgressIndicator()
-            else
-              DropdownButtonFormField<String>(
-                value: _servidor,
-                decoration: const InputDecoration(
-                  labelText: 'Servidor',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final nombre in _servidores) DropdownMenuItem(value: nombre, child: Text(nombre)),
-                ],
-                onChanged: _ocupado ? null : (valor) => setState(() => _servidor = valor),
-              ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: TextStyle(color: colores.error)),
             ],
-            const SizedBox(height: 28),
-            FilledButton(
-              onPressed: _ocupado || _cargandoServidores ? null : _entrar,
-              child: Text(_ocupado ? 'Entrando...' : 'Entrar'),
-            ),
-            if (!_cargandoServidores && _servidores.isEmpty) ...[
-              const SizedBox(height: 12),
-              TextButton(onPressed: _cargarServidores, child: const Text('Reintentar servidores')),
-            ],
-          ],
+          ),
         ),
       ),
     );
