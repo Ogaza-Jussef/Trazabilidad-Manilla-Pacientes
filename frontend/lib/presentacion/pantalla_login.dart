@@ -23,7 +23,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
   final _contrasena = TextEditingController();
   final _focoUsuario = FocusNode();
   final _focoContrasena = FocusNode();
-  var _servidores = const <String>[];
+  var _servidores = const <ServidorConexion>[];
   String? _servidor;
   String? _usuarioCargado;
   var _ocultar = true;
@@ -66,7 +66,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     if (usuario.isEmpty) {
       if (!mounted) return;
       setState(() {
-        _servidores = const [];
+        _servidores = const <ServidorConexion>[];
         _servidor = null;
         _usuarioCargado = null;
         _intentoServidores = false;
@@ -93,12 +93,12 @@ class _PantallaLoginState extends State<PantallaLogin> {
     final resultado = await _api.listarServidores();
     if (!mounted || _usuario.text.trim() != usuario) return;
     switch (resultado) {
-      case OkApi(valor: final nombres):
+      case OkApi(valor: final lista):
         setState(() {
           _cargandoServidores = false;
-          _servidores = nombres;
-          if (_servidor != null && !nombres.contains(_servidor)) _servidor = null;
-          _error = nombres.isEmpty ? 'No hay servidores disponibles.' : null;
+          _servidores = lista;
+          if (_servidor != null && !lista.any((item) => item.nombre == _servidor)) _servidor = null;
+          _error = lista.isEmpty ? 'No hay servidores disponibles.' : null;
         });
       case FalloApi(mensaje: final mensaje):
         setState(() {
@@ -119,6 +119,12 @@ class _PantallaLoginState extends State<PantallaLogin> {
       return;
     }
 
+    final elegido = _servidores.where((item) => item.nombre == servidor).firstOrNull;
+    if (elegido == null) {
+      setState(() => _error = 'Elige el servidor.');
+      return;
+    }
+
     setState(() {
       _ocupado = true;
       _error = null;
@@ -127,7 +133,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     final resultado = await _api.iniciarSesion(
       usuario: _usuario.text.trim(),
       contrasena: _contrasena.text,
-      servidor: servidor,
+      servidor: elegido,
     );
     if (!mounted) return;
     setState(() => _ocupado = false);
@@ -199,7 +205,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                           onChanged: (valor) {
                             if (_usuarioCargado != null && valor.trim() != _usuarioCargado) {
                               setState(() {
-                                _servidores = const [];
+                                _servidores = const <ServidorConexion>[];
                                 _servidor = null;
                                 _usuarioCargado = null;
                                 _intentoServidores = false;
@@ -234,7 +240,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
                             value: _servidor,
                             decoration: const InputDecoration(labelText: 'Servidor'),
                             items: [
-                              for (final nombre in _servidores) DropdownMenuItem(value: nombre, child: Text(nombre)),
+                              for (final item in _servidores) DropdownMenuItem(value: item.nombre, child: Text(item.nombre)),
                             ],
                             onChanged: _ocupado ? null : (valor) => setState(() => _servidor = valor),
                           ),

@@ -22,6 +22,24 @@ class FalloApi<T> extends ResultadoApi<T> {
   final int estado;
 }
 
+class ServidorConexion {
+  const ServidorConexion({
+    required this.nombre,
+    required this.ip,
+    required this.puerto,
+    required this.baseDatos,
+    required this.usuarioBd,
+    required this.claveBd,
+  });
+
+  final String nombre;
+  final String ip;
+  final int puerto;
+  final String baseDatos;
+  final String usuarioBd;
+  final String claveBd;
+}
+
 class ApiTrazabilidad {
   ApiTrazabilidad(this.ajustes, {http.Client? cliente}) : _cliente = cliente ?? http.Client();
 
@@ -37,8 +55,14 @@ class ApiTrazabilidad {
   static final Uri _servidoresCampbell = Uri.parse(
     'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-servidores',
   );
+  static final Uri _tokenCampbell = Uri.parse(
+    'https://appsintranet.esculapiosis.com/ApiCampbell/api/authtoken/tokenjwt',
+  );
+  static final Uri _empresasCampbell = Uri.parse(
+    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-ApiListaEmpresas',
+  );
 
-  Future<ResultadoApi<List<String>>> listarServidores() async {
+  Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
     try {
       final respuesta = await _cliente
           .get(_servidoresCampbell, headers: const {'Accept': 'application/json'})
@@ -50,14 +74,30 @@ class ApiTrazabilidad {
       if (decodificado is! List) {
         return const FalloApi('La lista de servidores no se pudo leer.', 0);
       }
-      final nombres = decodificado
-          .whereType<Map>()
-          .map((item) => (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim())
-          .where((nombre) => nombre.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      return OkApi(nombres, respuesta.statusCode);
+      final servidores = <ServidorConexion>[];
+      final vistos = <String>{};
+      for (final item in decodificado.whereType<Map>()) {
+        final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
+        final ip = (item['Ip_Conexion'] ?? '').toString().trim();
+        final puerto = int.tryParse('${item['Puerto']}') ?? 0;
+        final baseDatos = (item['BaseDatos'] ?? '').toString().trim();
+        final usuarioBd = (item['Usuario'] ?? '').toString().trim();
+        final claveBd = (item['Clave'] ?? '').toString();
+        if (nombre.isEmpty || ip.isEmpty || puerto <= 0 || baseDatos.isEmpty || usuarioBd.isEmpty || claveBd.isEmpty) {
+          continue;
+        }
+        if (!vistos.add(nombre.toLowerCase())) continue;
+        servidores.add(ServidorConexion(
+          nombre: nombre,
+          ip: ip,
+          puerto: puerto,
+          baseDatos: baseDatos,
+          usuarioBd: usuarioBd,
+          claveBd: claveBd,
+        ));
+      }
+      servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
+      return OkApi(servidores, respuesta.statusCode);
     } on TimeoutException {
       return const FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
@@ -68,19 +108,78 @@ class ApiTrazabilidad {
   Future<ResultadoApi<Ingreso>> iniciarSesion({
     required String usuario,
     required String contrasena,
-    required String servidor,
+    required ServidorConexion servidor,
   }) async {
-    final uri = Uri.parse('${ajustes.urlBase}/api/v1/sesiones');
-    return _enviar(
-      () => _cliente
+    try {
+      final tokenRespuesta = await _cliente
           .post(
-            uri,
+            _tokenCampbell,
             headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
-            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena, 'servidor': servidor}),
+            body: jsonEncode({
+              'Username': usuario,
+              'PassWordUsu': contrasena,
+              'Nombre': '',
+              'Cedula': '',
+              'Ip_Conexion': servidor.ip,
+              'Puerto': servidor.puerto,
+              'BaseDatos': servidor.baseDatos,
+              'Usuario': servidor.usuarioBd,
+              'Clave': servidor.claveBd,
+              'Role': '',
+            }),
           )
-          .timeout(const Duration(seconds: 20)),
-      (json, estado) => Ingreso.desdeJson(json),
-    );
+          .timeout(const Duration(seconds: 20));
+      if (tokenRespuesta.statusCode < 200 || tokenRespuesta.statusCode >= 300) {
+        return const FalloApi('Usuario o contraseña incorrectos.', 401);
+      }
+      final tokenJson = jsonDecode(tokenRespuesta.body);
+      final token = tokenJson is Map ? (tokenJson['token'] ?? tokenJson['Token'] ?? '').toString() : '';
+      if (token.isEmpty) {
+        return const FalloApi('Usuario o contraseña incorrectos.', 401);
+      }
+
+      final empresasRespuesta = await _cliente
+          .post(
+            _empresasCampbell,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'IpConexion': servidor.ip,
+              'Usuario': usuario,
+              'PasswordUsu': contrasena,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (empresasRespuesta.statusCode == 401 || empresasRespuesta.statusCode == 403) {
+        return const FalloApi('Usuario o contraseña incorrectos.', 401);
+      }
+      if (empresasRespuesta.statusCode < 200 || empresasRespuesta.statusCode >= 300) {
+        return FalloApi('No se pudieron consultar las empresas.', empresasRespuesta.statusCode);
+      }
+      final empresasJson = jsonDecode(empresasRespuesta.body);
+      if (empresasJson is! List) {
+        return const FalloApi('La lista de empresas no se pudo leer.', 0);
+      }
+      final empresas = <EmpresaAsociada>[];
+      for (final item in empresasJson.whereType<Map>()) {
+        final codigo = (item['Empresa'] ?? item['empresa'] ?? '').toString().trim();
+        var nombre = (item['Nombre_Empresa'] ?? item['nombre_Empresa'] ?? item['nombre'] ?? '').toString().trim();
+        if (codigo.isEmpty) continue;
+        if (nombre.isEmpty) nombre = codigo;
+        empresas.add(EmpresaAsociada(codigo: codigo, nombre: nombre));
+      }
+      if (empresas.isEmpty) {
+        return const FalloApi('El usuario no tiene empresas asociadas.', 401);
+      }
+      return OkApi(Ingreso(token: token, usuario: usuario, empresas: empresas), empresasRespuesta.statusCode);
+    } on TimeoutException {
+      return const FalloApi('La API no respondió a tiempo.', 0);
+    } catch (_) {
+      return const FalloApi('No se pudo conectar con el servidor.', 0);
+    }
   }
 
   Future<ResultadoApi<void>> probarConexion() async {
