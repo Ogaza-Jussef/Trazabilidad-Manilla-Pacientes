@@ -1,0 +1,14 @@
+---
+description: Sube cada cambio pedido a GitHub en la rama main
+alwaysApply: true
+---
+
+# Subir los cambios a GitHub
+
+Cuando el usuario pida un cambio en este repositorio, el trabajo no está cerrado hasta que ese cambio esté en GitHub.
+
+- Remoto: `https://github.com/Ogaza-Jussef/Trazabilidad-Manilla-Pacientes.git` (`origin`).
+- Rama por defecto: `main`.
+- Al terminar: revisa que no haya secretos, crea el commit y haz `git push` de `main` a `origin`.
+- No cambies la configuración de git. No uses `--force`, `--no-verify` ni reescribas `main`.
+- Si el push falla por permisos, dilo en la respuesta y no lo presentes como subido.
