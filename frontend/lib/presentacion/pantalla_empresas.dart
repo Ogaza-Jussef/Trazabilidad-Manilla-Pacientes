@@ -25,8 +25,14 @@ class PantallaEmpresas extends StatefulWidget {
 
 class _PantallaEmpresasState extends State<PantallaEmpresas> {
   String? _codigo;
+  String? _codigoConfirmado;
   var _servicio = serviciosLectura.first;
   var _ocupado = false;
+
+  void _entrarEmpresa() {
+    if (_codigo == null || _ocupado) return;
+    setState(() => _codigoConfirmado = _codigo);
+  }
 
   Future<void> _empezar() async {
     final codigo = _codigo;
@@ -68,7 +74,10 @@ class _PantallaEmpresasState extends State<PantallaEmpresas> {
                 groupValue: _codigo,
                 onChanged: (valor) {
                   if (_ocupado || valor == null) return;
-                  setState(() => _codigo = valor);
+                  setState(() {
+                    _codigo = valor;
+                    if (_codigoConfirmado != valor) _codigoConfirmado = null;
+                  });
                 },
                 child: Column(
                   children: [
@@ -97,26 +106,33 @@ class _PantallaEmpresasState extends State<PantallaEmpresas> {
                 ),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                // El valor controlado sigue al servicio elegido; initialValue no lo actualiza.
-                // ignore: deprecated_member_use
-                value: _servicio,
-                decoration: const InputDecoration(labelText: 'Servicio de este puesto'),
-                items: [
-                  for (final servicio in serviciosLectura) DropdownMenuItem(value: servicio, child: Text(servicio)),
-                ],
-                onChanged: _ocupado
-                    ? null
-                    : (valor) {
-                        if (valor != null) setState(() => _servicio = valor);
-                      },
-              ),
-              const SizedBox(height: 20),
-              BotonSis(
-                texto: 'Empezar',
-                ocupado: _ocupado,
-                onPressed: _codigo == null || _ocupado ? null : _empezar,
-              ),
+              if (_codigoConfirmado == null)
+                BotonSis(
+                  texto: 'Entrar',
+                  onPressed: _codigo == null || _ocupado ? null : _entrarEmpresa,
+                )
+              else ...[
+                DropdownButtonFormField<String>(
+                  // El valor controlado sigue al servicio elegido; initialValue no lo actualiza.
+                  // ignore: deprecated_member_use
+                  value: _servicio,
+                  decoration: const InputDecoration(labelText: 'Servicio de este puesto'),
+                  items: [
+                    for (final servicio in serviciosLectura) DropdownMenuItem(value: servicio, child: Text(servicio)),
+                  ],
+                  onChanged: _ocupado
+                      ? null
+                      : (valor) {
+                          if (valor != null) setState(() => _servicio = valor);
+                        },
+                ),
+                const SizedBox(height: 20),
+                BotonSis(
+                  texto: 'Empezar',
+                  ocupado: _ocupado,
+                  onPressed: _ocupado ? null : _empezar,
+                ),
+              ],
             ],
           ),
         ),
