@@ -208,6 +208,20 @@ class _PantallaLoginState extends State<PantallaLogin> {
                           },
                           onEditingComplete: _alDejarUsuario,
                         ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _contrasena,
+                          focusNode: _focoContrasena,
+                          obscureText: _ocultar,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            suffixIcon: IconButton(
+                              onPressed: () => setState(() => _ocultar = !_ocultar),
+                              icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                            ),
+                          ),
+                        ),
                         if (_cargandoServidores) ...[
                           const SizedBox(height: 16),
                           const BarraProgresoSis(),
@@ -225,20 +239,6 @@ class _PantallaLoginState extends State<PantallaLogin> {
                             onChanged: _ocupado ? null : (valor) => setState(() => _servidor = valor),
                           ),
                         ],
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _contrasena,
-                          focusNode: _focoContrasena,
-                          obscureText: _ocultar,
-                          textInputAction: TextInputAction.done,
-                          decoration: InputDecoration(
-                            labelText: 'Contraseña',
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(() => _ocultar = !_ocultar),
-                              icon: Icon(_ocultar ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                            ),
-                          ),
-                        ),
                         if (_error != null) ...[
                           const SizedBox(height: 16),
                           MensajeErrorSis(mensaje: _error!),
