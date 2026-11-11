@@ -35,7 +35,7 @@ backend/
   src/Trazabilidad.Api             HTTP, sesión y composición
   tests/Trazabilidad.Tests
   db/migraciones/001_crear_trazabilidad_manillas.sql
-frontend/                          Flutter (lib). Aún no tiene carpetas android/ios
+frontend/                          Flutter. El módulo Android está en frontend/android
 global.json                        fija el SDK de .NET
 ```
 
@@ -92,11 +92,12 @@ dotnet run --project backend/src/Trazabilidad.Api --launch-profile http
 
 Comprobar: `GET http://localhost:5080/health` responde `{ "status": "ok" }`.
 
-Frontend. Hace falta el SDK de Flutter, que en esta máquina no está instalado:
+Frontend. En Android Studio abre la carpeta `frontend` (ahí está el `pubspec.yaml` y el módulo Android). El SDK de Flutter de esta máquina está en `D:\flutter` y el Android SDK en `D:\Sdk-Android-Studio`. Esas rutas quedan en `frontend/android/local.properties`, que no se versiona.
+
+La app pide internet, cámara y HTTP sin cifrado para hablar con `http://10.0.2.2:5080` desde el emulador. El nombre en el teléfono es Trazabilidad.
 
 ```powershell
 cd frontend
-flutter create . --project-name trazabilidad_manillas
 flutter pub get
 flutter run
 ```
@@ -230,4 +231,4 @@ Script: `backend/db/migraciones/001_crear_trazabilidad_manillas.sql`.
 
 - Cadena de conexión a MySQL y ejecución real del repositorio.
 - Directorio de usuarios del hospital, en lugar del usuario de desarrollo.
-- Carpetas `android` e `ios` de Flutter, cuando el SDK esté instalado.
+- Carpeta `ios`, si más adelante se ejecuta en iPhone.
