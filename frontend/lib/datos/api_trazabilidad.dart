@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'ajustes_puesto.dart';
@@ -64,7 +63,6 @@ class ApiTrazabilidad {
   );
 
   Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
-    if (kIsWeb) return _listarServidoresLocales();
     try {
       final respuesta = await _cliente
           .get(_servidoresCampbell, headers: const {'Accept': 'application/json'})
@@ -107,50 +105,11 @@ class ApiTrazabilidad {
     }
   }
 
-  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresLocales() async {
-    final uri = Uri.parse('${ajustes.urlBase}/api/v1/servidores');
-    return _enviar(
-      () => _cliente.get(uri, headers: const {'Accept': 'application/json'}).timeout(const Duration(seconds: 20)),
-      (json, estado) {
-        final items = json['items'];
-        if (items is! List) return <ServidorConexion>[];
-        return items.whereType<Map>().map((item) {
-          final nombre = (item['nombre'] ?? '').toString().trim();
-          return ServidorConexion(
-            nombre: nombre,
-            ip: '',
-            puerto: 0,
-            baseDatos: '',
-            usuarioBd: '',
-            claveBd: '',
-          );
-        }).where((servidor) => servidor.nombre.isNotEmpty).toList();
-      },
-    );
-  }
-
   Future<ResultadoApi<Ingreso>> iniciarSesion({
     required String usuario,
     required String contrasena,
     required ServidorConexion servidor,
   }) async {
-    if (kIsWeb) {
-      final uri = Uri.parse('${ajustes.urlBase}/api/v1/sesiones');
-      return _enviar(
-        () => _cliente
-            .post(
-              uri,
-              headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'usuario': usuario,
-                'contrasena': contrasena,
-                'servidor': servidor.nombre,
-              }),
-            )
-            .timeout(const Duration(seconds: 20)),
-        (json, estado) => Ingreso.desdeJson(json),
-      );
-    }
     try {
       final tokenRespuesta = await _cliente
           .post(
