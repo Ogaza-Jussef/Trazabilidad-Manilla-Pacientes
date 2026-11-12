@@ -66,6 +66,11 @@ class ApiTrazabilidad {
   );
 
   Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
+    final lista = await _listarServidoresApi(token: '');
+    if (lista is FalloApi<List<ServidorConexion>>) return lista;
+    final nombres = (lista as OkApi<List<ServidorConexion>>).valor;
+    final porIp = {for (final servidor in nombres) servidor.ip: servidor};
+
     try {
       final respuesta = await _cliente
           .get(_catalogoCampbell, headers: const {'Accept': 'application/json'})
@@ -80,17 +85,17 @@ class ApiTrazabilidad {
       final servidores = <ServidorConexion>[];
       final vistos = <String>{};
       for (final item in decodificado.whereType<Map>()) {
-        final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
         final ip = (item['Ip_Conexion'] ?? '').toString().trim();
-        if (nombre.isEmpty || ip.isEmpty) continue;
-        if (!vistos.add(nombre.toLowerCase())) continue;
+        final base = porIp[ip];
+        if (base == null) continue;
+        if (!vistos.add(base.nombre.toLowerCase())) continue;
         servidores.add(ServidorConexion(
-          nombre: nombre,
+          nombre: base.nombre,
           ip: ip,
-          puerto: 0,
-          baseDatos: 'bd',
-          usuarioBd: '',
-          claveBd: '',
+          puerto: int.tryParse('${item['Puerto']}') ?? 0,
+          baseDatos: (item['BaseDatos'] ?? '').toString().trim(),
+          usuarioBd: (item['Usuario'] ?? '').toString().trim(),
+          claveBd: (item['Clave'] ?? '').toString(),
         ));
       }
       servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
@@ -102,20 +107,18 @@ class ApiTrazabilidad {
     }
   }
 
-  Future<ResultadoApi<List<ServidorConexion>>> listarServidoresApi({
-    required String ip,
+  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresApi({
     required String token,
+    String ip = '',
   }) async {
     try {
-      final uri = _servidoresCampbell.replace(queryParameters: {'IpConexion': ip});
+      final uri = ip.isEmpty
+          ? _servidoresCampbell
+          : _servidoresCampbell.replace(queryParameters: {'IpConexion': ip});
+      final encabezados = <String, String>{'Accept': 'application/json'};
+      if (token.isNotEmpty) encabezados['Authorization'] = 'Bearer $token';
       final respuesta = await _cliente
-          .get(
-            uri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-          )
+          .get(uri, headers: encabezados)
           .timeout(const Duration(seconds: 20));
       if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
         return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
@@ -162,6 +165,11 @@ class ApiTrazabilidad {
               'Nombre': '',
               'Cedula': '',
               'Ip_Conexion': servidor.ip,
+              'Puerto': servidor.puerto,
+              'BaseDatos': servidor.baseDatos,
+              'Usuario': servidor.usuarioBd,
+              'Clave': servidor.claveBd,
+              'Role': '',
             }),
           )
           .timeout(const Duration(seconds: 20));
