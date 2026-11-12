@@ -112,14 +112,17 @@ Dirección del servidor según el dispositivo:
 
 La app del emulador llama a la API local en `http://10.0.2.2:5080`. En el navegador usa `http://localhost:5080`. El servidor que elige el operador sale de Campbell y se muestra solo por nombre, por ejemplo Campbell o Bahia. Las empresas se ven como `C30 - Fundacion Campbell`.
 
-Web. El proyecto está en `frontend_web` y usa las mismas pantallas. Primero arranca la API; el navegador solo puede hablar con `localhost`.
+Web. El proyecto está en `frontend_web` y usa las mismas pantallas. No se ejecuta eligiendo el Xiaomi: esa opción busca una app Android y esta carpeta no la tiene. En Android Studio el dispositivo debe ser **Chrome** o **Edge**.
+
+Para abrirla en el navegador del teléfono, el teléfono y el PC tienen que estar en la misma Wi-Fi. Primero la API, que escucha en todas las interfaces del PC:
 
 ```powershell
 dotnet run --project backend/src/Trazabilidad.Api --launch-profile http
 cd frontend_web
-flutter pub get
-flutter run -d chrome
+flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
 ```
+
+Flutter muestra una dirección. En el teléfono abre `http://IP-DEL-PC:8080`. En el PC, Chrome sigue siendo `flutter run -d chrome`.
 
 ### Datos de desarrollo
 

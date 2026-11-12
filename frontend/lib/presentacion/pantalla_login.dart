@@ -18,7 +18,16 @@ class PantallaLogin extends StatefulWidget {
 }
 
 class _PantallaLoginState extends State<PantallaLogin> {
-  static String get _urlApi => kIsWeb ? 'http://localhost:5080' : 'http://10.0.2.2:5080';
+  static String get _urlApi {
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      if (host.isEmpty || host == 'localhost' || host == '127.0.0.1') {
+        return 'http://localhost:5080';
+      }
+      return 'http://$host:5080';
+    }
+    return 'http://10.0.2.2:5080';
+  }
 
   final _usuario = TextEditingController();
   final _contrasena = TextEditingController();
