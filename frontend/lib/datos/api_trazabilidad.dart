@@ -66,27 +66,6 @@ class ApiTrazabilidad {
   );
 
   Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
-    final sedes = await _listarSedes();
-    if (sedes is FalloApi<List<ServidorConexion>>) return sedes;
-    final origen = (sedes as OkApi<List<ServidorConexion>>).valor;
-
-    final servidores = <ServidorConexion>[];
-    final vistos = <String>{};
-    for (final sede in origen) {
-      final consulta = await _listarServidoresDe(sede);
-      if (consulta is FalloApi<List<ServidorConexion>>) return consulta;
-      for (final servidor in (consulta as OkApi<List<ServidorConexion>>).valor) {
-        if (vistos.add(servidor.nombre.toLowerCase())) servidores.add(servidor);
-      }
-    }
-    if (servidores.isEmpty) {
-      return OkApi(origen, 200);
-    }
-    servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
-    return OkApi(servidores, 200);
-  }
-
-  Future<ResultadoApi<List<ServidorConexion>>> _listarSedes() async {
     try {
       final respuesta = await _cliente
           .get(_catalogoCampbell, headers: const {'Accept': 'application/json'})
@@ -98,12 +77,24 @@ class ApiTrazabilidad {
       if (decodificado is! List) {
         return const FalloApi('La lista de servidores no se pudo leer.', 0);
       }
-      final sedes = <ServidorConexion>[];
+      final servidores = <ServidorConexion>[];
+      final vistos = <String>{};
       for (final item in decodificado.whereType<Map>()) {
-        final servidor = _servidorConexionDesde(item);
-        if (servidor != null) sedes.add(servidor);
+        final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
+        final ip = (item['Ip_Conexion'] ?? '').toString().trim();
+        if (nombre.isEmpty || ip.isEmpty) continue;
+        if (!vistos.add(nombre.toLowerCase())) continue;
+        servidores.add(ServidorConexion(
+          nombre: nombre,
+          ip: ip,
+          puerto: 0,
+          baseDatos: 'bd',
+          usuarioBd: '',
+          claveBd: '',
+        ));
       }
-      return OkApi(sedes, respuesta.statusCode);
+      servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
+      return OkApi(servidores, respuesta.statusCode);
     } on TimeoutException {
       return const FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
@@ -111,17 +102,21 @@ class ApiTrazabilidad {
     }
   }
 
-  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresDe(ServidorConexion sede) async {
+  Future<ResultadoApi<List<ServidorConexion>>> listarServidoresApi({
+    required String ip,
+    required String token,
+  }) async {
     try {
-      final uri = _servidoresCampbell.replace(
-        queryParameters: {'IpConexion': sede.ip},
-      );
+      final uri = _servidoresCampbell.replace(queryParameters: {'IpConexion': ip});
       final respuesta = await _cliente
-          .get(uri, headers: const {'Accept': 'application/json'})
+          .get(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
           .timeout(const Duration(seconds: 20));
-      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
-        return OkApi([sede], respuesta.statusCode);
-      }
       if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
         return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
       }
@@ -132,14 +127,15 @@ class ApiTrazabilidad {
       final servidores = <ServidorConexion>[];
       for (final item in decodificado.whereType<Map>()) {
         final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
-        if (nombre.isEmpty) continue;
+        final ipConexion = (item['Ip_Conexion'] ?? item['ip_Conexion'] ?? '').toString().trim();
+        if (nombre.isEmpty || ipConexion.isEmpty) continue;
         servidores.add(ServidorConexion(
           nombre: nombre,
-          ip: sede.ip,
-          puerto: sede.puerto,
-          baseDatos: sede.baseDatos,
-          usuarioBd: sede.usuarioBd,
-          claveBd: sede.claveBd,
+          ip: ipConexion,
+          puerto: 0,
+          baseDatos: 'bd',
+          usuarioBd: '',
+          claveBd: '',
         ));
       }
       return OkApi(servidores, respuesta.statusCode);
@@ -148,26 +144,6 @@ class ApiTrazabilidad {
     } catch (_) {
       return const FalloApi('No se pudo conectar con el servidor.', 0);
     }
-  }
-
-  ServidorConexion? _servidorConexionDesde(Map<dynamic, dynamic> item) {
-    final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
-    final ip = (item['Ip_Conexion'] ?? '').toString().trim();
-    final puerto = int.tryParse('${item['Puerto']}') ?? 0;
-    final baseDatos = (item['BaseDatos'] ?? '').toString().trim();
-    final usuarioBd = (item['Usuario'] ?? '').toString().trim();
-    final claveBd = (item['Clave'] ?? '').toString();
-    if (nombre.isEmpty || ip.isEmpty || puerto <= 0 || baseDatos.isEmpty || usuarioBd.isEmpty || claveBd.isEmpty) {
-      return null;
-    }
-    return ServidorConexion(
-      nombre: nombre,
-      ip: ip,
-      puerto: puerto,
-      baseDatos: baseDatos,
-      usuarioBd: usuarioBd,
-      claveBd: claveBd,
-    );
   }
 
   Future<ResultadoApi<Ingreso>> iniciarSesion({
@@ -186,11 +162,6 @@ class ApiTrazabilidad {
               'Nombre': '',
               'Cedula': '',
               'Ip_Conexion': servidor.ip,
-              'Puerto': servidor.puerto,
-              'BaseDatos': servidor.baseDatos,
-              'Usuario': servidor.usuarioBd,
-              'Clave': servidor.claveBd,
-              'Role': '',
             }),
           )
           .timeout(const Duration(seconds: 20));
