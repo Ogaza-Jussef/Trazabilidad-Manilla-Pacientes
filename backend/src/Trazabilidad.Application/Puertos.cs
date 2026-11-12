@@ -6,9 +6,15 @@ public sealed record Empresa(string Codigo, string Nombre);
 
 public sealed record ServidorPublico(string Nombre);
 
+public sealed record ServidorApi(string Ip, string Nombre);
+
 public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas);
 
-public sealed record SesionActiva(string Token, string Usuario, IReadOnlyList<Empresa> Empresas);
+public sealed record SesionActiva(
+    string Token,
+    string Usuario,
+    IReadOnlyList<Empresa> Empresas,
+    string Servidor);
 
 public interface IDirectorioUsuarios
 {
@@ -24,9 +30,14 @@ public interface ICatalogoServidores
     Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion);
 }
 
+public interface IConsultaServidoresApi
+{
+    Task<IReadOnlyList<ServidorApi>> Listar(string token, string servidor, CancellationToken cancelacion);
+}
+
 public interface IAlmacenSesiones
 {
-    SesionActiva Crear(UsuarioAutenticado usuario);
+    SesionActiva Crear(UsuarioAutenticado usuario, string servidor);
 
     SesionActiva? Obtener(string token);
 }

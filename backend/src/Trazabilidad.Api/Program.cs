@@ -14,22 +14,23 @@ builder.Logging.AddJsonConsole(opciones =>
 });
 
 builder.Services.AddSingleton(new OpcionesSeguridad(clave));
-builder.Services.AddCors(opciones =>
-{
-    opciones.AddDefaultPolicy(politica =>
-    {
-        politica.SetIsOriginAllowed(EsOrigenDePrueba);
-        politica.AllowAnyHeader();
-        politica.AllowAnyMethod();
-    });
-});
 Composicion.Registrar(builder);
 
 var app = builder.Build();
 
-app.UseCors();
 app.UseMiddleware<RegistroSolicitudMiddleware>();
 app.UseMiddleware<ManejadorErroresMiddleware>();
+app.Use((contexto, siguiente) =>
+{
+    if (HttpMethods.IsOptions(contexto.Request.Method))
+    {
+        AgregarCors(contexto);
+        return Task.CompletedTask;
+    }
+
+    return siguiente();
+});
+
 app.UseMiddleware<LlaveApiMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
@@ -44,24 +45,21 @@ app.MapGet("/health/ready", (IConfiguration configuracion) =>
 
 RutasTrazabilidad.Map(app);
 
+app.Use((contexto, siguiente) =>
+{
+    AgregarCors(contexto);
+    return siguiente();
+});
+
 app.Run();
 
-static bool EsOrigenDePrueba(string origen)
+static void AgregarCors(HttpContext contexto)
 {
-    if (!Uri.TryCreate(origen, UriKind.Absolute, out var uri))
-        return false;
-    if (uri.Host is "localhost" or "127.0.0.1")
-        return true;
-    if (!System.Net.IPAddress.TryParse(uri.Host, out var ip))
-        return false;
-    var octetos = ip.GetAddressBytes();
-    if (octetos.Length != 4)
-        return false;
-    if (octetos[0] == 10)
-        return true;
-    if (octetos[0] == 192 && octetos[1] == 168)
-        return true;
-    return octetos[0] == 172 && octetos[1] is >= 16 and <= 31;
+    contexto.Response.Headers.AccessControlAllowOrigin = contexto.Request.Headers.Origin.Count > 0
+        ? contexto.Request.Headers.Origin[0]!
+        : "*";
+    contexto.Response.Headers.AccessControlAllowHeaders = "*";
+    contexto.Response.Headers.AccessControlAllowMethods = "*";
 }
 
 public partial class Program

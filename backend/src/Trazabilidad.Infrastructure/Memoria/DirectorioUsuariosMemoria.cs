@@ -4,7 +4,7 @@ using Trazabilidad.Application;
 
 namespace Trazabilidad.Infrastructure.Memoria;
 
-public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores
+public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores, IConsultaServidoresApi
 {
     private readonly UsuarioAutenticado _usuario;
     private readonly byte[] _contrasena;
@@ -17,6 +17,12 @@ public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoSe
 
     public Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion) =>
         Task.FromResult<IReadOnlyList<ServidorPublico>>([new ServidorPublico("Desarrollo")]);
+
+    public Task<IReadOnlyList<ServidorApi>> Listar(
+        string token,
+        string servidor,
+        CancellationToken cancelacion) =>
+        Task.FromResult<IReadOnlyList<ServidorApi>>(SemillaDesarrollo.Servidores);
 
     public Task<UsuarioAutenticado?> Autenticar(
         string usuario,

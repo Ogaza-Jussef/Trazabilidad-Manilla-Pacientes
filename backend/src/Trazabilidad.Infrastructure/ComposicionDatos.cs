@@ -14,6 +14,11 @@ public static class SemillaDesarrollo
 
     public const string Contrasena = "operador";
 
+    public static readonly ServidorApi[] Servidores =
+    {
+        new("", "Desarrollo"),
+    };
+
     public static readonly Paciente[] Pacientes =
     {
         new("C30", "100001", "10000001", "Ana", "Perez"),

@@ -52,18 +52,21 @@ public static class Composicion
             });
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioCampbell>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioCampbell>());
+            builder.Services.AddSingleton<IConsultaServidoresApi>(sp => sp.GetRequiredService<DirectorioCampbell>());
         }
         else if (builder.Environment.IsProduction())
         {
             builder.Services.AddSingleton<DirectorioUsuariosPendiente>();
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
+            builder.Services.AddSingleton<IConsultaServidoresApi>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
         }
         else
         {
             builder.Services.AddSingleton<DirectorioUsuariosMemoria>();
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
+            builder.Services.AddSingleton<IConsultaServidoresApi>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
         }
 
         builder.Services.AddSingleton<IAlmacenSesiones, AlmacenSesionesMemoria>();

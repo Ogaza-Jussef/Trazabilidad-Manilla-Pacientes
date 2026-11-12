@@ -8,10 +8,10 @@ public sealed class AlmacenSesionesMemoria : IAlmacenSesiones
     private readonly object _puerta = new();
     private readonly Dictionary<string, SesionActiva> _sesiones = new(StringComparer.Ordinal);
 
-    public SesionActiva Crear(UsuarioAutenticado usuario)
+    public SesionActiva Crear(UsuarioAutenticado usuario, string servidor)
     {
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        var sesion = new SesionActiva(token, usuario.Usuario, usuario.Empresas);
+        var sesion = new SesionActiva(token, usuario.Usuario, usuario.Empresas, servidor);
         lock (_puerta)
             _sesiones[token] = sesion;
         return sesion;

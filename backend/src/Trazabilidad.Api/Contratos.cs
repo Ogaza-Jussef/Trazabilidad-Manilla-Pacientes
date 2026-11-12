@@ -31,6 +31,8 @@ public sealed record SesionResponse(string Token, string Usuario, IReadOnlyList<
 
 public sealed record ServidorPublicoResponse(string Nombre);
 
+public sealed record ServidorApiResponse(string Ip, string Nombre);
+
 public sealed class InicioSesionRequest
 {
     public string? Usuario { get; set; }

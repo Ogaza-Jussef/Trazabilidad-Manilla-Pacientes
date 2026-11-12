@@ -7,7 +7,7 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores
+public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores, IConsultaServidoresApi
 {
     private readonly HttpClient _cliente;
 
@@ -31,6 +31,47 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(nombre => nombre, StringComparer.OrdinalIgnoreCase)
             .Select(nombre => new ServidorPublico(nombre))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<ServidorApi>> Listar(
+        string token,
+        string servidor,
+        CancellationToken cancelacion)
+    {
+        var sede = (await ObtenerServidores(cancelacion))
+            .FirstOrDefault(item => string.Equals(item.Descripcion.Trim(), servidor, StringComparison.OrdinalIgnoreCase));
+        if (sede is null)
+            return [];
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Get,
+            "api/Usuarios/obtener-ApiServidores?IpConexion=" + Uri.EscapeDataString(sede.IpConexion));
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
+        if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new ErrorNoAutenticado("La sesión ya no es válida.");
+
+        if (!respuesta.IsSuccessStatusCode)
+            throw new ErrorDependencia("No se pudo obtener la lista de servidores.");
+
+        List<ServidorApiDto>? lista;
+        try
+        {
+            lista = await respuesta.Content.ReadFromJsonAsync<List<ServidorApiDto>>(Json, cancelacion);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new ErrorDependencia("La lista de servidores no se pudo leer.");
+        }
+
+        if (lista is null)
+            throw new ErrorDependencia("La lista de servidores no se pudo leer.");
+
+        return lista
+            .Where(item => !string.IsNullOrWhiteSpace(item.Descripcion))
+            .Select(item => new ServidorApi((item.Ip_Conexion ?? "").Trim(), item.Descripcion!.Trim()))
             .ToArray();
     }
 
@@ -247,5 +288,12 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         public string? Empresa { get; set; }
 
         public string? Nombre_Empresa { get; set; }
+    }
+
+    private sealed class ServidorApiDto
+    {
+        public string? Ip_Conexion { get; set; }
+
+        public string? Descripcion { get; set; }
     }
 }

@@ -35,6 +35,6 @@ public sealed class IniciarSesion
         if (autenticado is null || autenticado.Empresas.Count == 0)
             throw new ErrorNoAutenticado("Usuario o contraseña incorrectos.");
 
-        return _sesiones.Crear(autenticado);
+        return _sesiones.Crear(autenticado, sede);
     }
 }
