@@ -52,8 +52,11 @@ class ApiTrazabilidad {
         'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
 
-  static final Uri _servidoresCampbell = Uri.parse(
+  static final Uri _catalogoCampbell = Uri.parse(
     'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-servidores',
+  );
+  static final Uri _servidoresCampbell = Uri.parse(
+    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-ApiServidores',
   );
   static final Uri _tokenCampbell = Uri.parse(
     'https://appsintranet.esculapiosis.com/ApiCampbell/api/authtoken/tokenjwt',
@@ -63,9 +66,30 @@ class ApiTrazabilidad {
   );
 
   Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
+    final sedes = await _listarSedes();
+    if (sedes is FalloApi<List<ServidorConexion>>) return sedes;
+    final origen = (sedes as OkApi<List<ServidorConexion>>).valor;
+
+    final servidores = <ServidorConexion>[];
+    final vistos = <String>{};
+    for (final sede in origen) {
+      final consulta = await _listarServidoresDe(sede);
+      if (consulta is FalloApi<List<ServidorConexion>>) return consulta;
+      for (final servidor in (consulta as OkApi<List<ServidorConexion>>).valor) {
+        if (vistos.add(servidor.nombre.toLowerCase())) servidores.add(servidor);
+      }
+    }
+    if (servidores.isEmpty) {
+      return OkApi(origen, 200);
+    }
+    servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
+    return OkApi(servidores, 200);
+  }
+
+  Future<ResultadoApi<List<ServidorConexion>>> _listarSedes() async {
     try {
       final respuesta = await _cliente
-          .get(_servidoresCampbell, headers: const {'Accept': 'application/json'})
+          .get(_catalogoCampbell, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 20));
       if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
         return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
@@ -74,35 +98,76 @@ class ApiTrazabilidad {
       if (decodificado is! List) {
         return const FalloApi('La lista de servidores no se pudo leer.', 0);
       }
+      final sedes = <ServidorConexion>[];
+      for (final item in decodificado.whereType<Map>()) {
+        final servidor = _servidorConexionDesde(item);
+        if (servidor != null) sedes.add(servidor);
+      }
+      return OkApi(sedes, respuesta.statusCode);
+    } on TimeoutException {
+      return const FalloApi('La API no respondió a tiempo.', 0);
+    } catch (_) {
+      return const FalloApi('No se pudo conectar con el servidor.', 0);
+    }
+  }
+
+  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresDe(ServidorConexion sede) async {
+    try {
+      final uri = _servidoresCampbell.replace(
+        queryParameters: {'IpConexion': sede.ip},
+      );
+      final respuesta = await _cliente
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 20));
+      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
+        return OkApi([sede], respuesta.statusCode);
+      }
+      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
+        return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
+      }
+      final decodificado = jsonDecode(respuesta.body);
+      if (decodificado is! List) {
+        return const FalloApi('La lista de servidores no se pudo leer.', 0);
+      }
       final servidores = <ServidorConexion>[];
-      final vistos = <String>{};
       for (final item in decodificado.whereType<Map>()) {
         final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
-        final ip = (item['Ip_Conexion'] ?? '').toString().trim();
-        final puerto = int.tryParse('${item['Puerto']}') ?? 0;
-        final baseDatos = (item['BaseDatos'] ?? '').toString().trim();
-        final usuarioBd = (item['Usuario'] ?? '').toString().trim();
-        final claveBd = (item['Clave'] ?? '').toString();
-        if (nombre.isEmpty || ip.isEmpty || puerto <= 0 || baseDatos.isEmpty || usuarioBd.isEmpty || claveBd.isEmpty) {
-          continue;
-        }
-        if (!vistos.add(nombre.toLowerCase())) continue;
+        if (nombre.isEmpty) continue;
         servidores.add(ServidorConexion(
           nombre: nombre,
-          ip: ip,
-          puerto: puerto,
-          baseDatos: baseDatos,
-          usuarioBd: usuarioBd,
-          claveBd: claveBd,
+          ip: sede.ip,
+          puerto: sede.puerto,
+          baseDatos: sede.baseDatos,
+          usuarioBd: sede.usuarioBd,
+          claveBd: sede.claveBd,
         ));
       }
-      servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
       return OkApi(servidores, respuesta.statusCode);
     } on TimeoutException {
       return const FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
       return const FalloApi('No se pudo conectar con el servidor.', 0);
     }
+  }
+
+  ServidorConexion? _servidorConexionDesde(Map<dynamic, dynamic> item) {
+    final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
+    final ip = (item['Ip_Conexion'] ?? '').toString().trim();
+    final puerto = int.tryParse('${item['Puerto']}') ?? 0;
+    final baseDatos = (item['BaseDatos'] ?? '').toString().trim();
+    final usuarioBd = (item['Usuario'] ?? '').toString().trim();
+    final claveBd = (item['Clave'] ?? '').toString();
+    if (nombre.isEmpty || ip.isEmpty || puerto <= 0 || baseDatos.isEmpty || usuarioBd.isEmpty || claveBd.isEmpty) {
+      return null;
+    }
+    return ServidorConexion(
+      nombre: nombre,
+      ip: ip,
+      puerto: puerto,
+      baseDatos: baseDatos,
+      usuarioBd: usuarioBd,
+      claveBd: claveBd,
+    );
   }
 
   Future<ResultadoApi<Ingreso>> iniciarSesion({
