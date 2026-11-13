@@ -35,7 +35,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
   final _focoContrasena = FocusNode();
   var _servidores = const <ServidorConexion>[];
   String? _servidor;
-  String? _usuarioCargado;
+  String? _credencialesCargadas;
   var _ocultar = true;
   var _cargandoServidores = false;
   var _intentoServidores = false;
@@ -46,10 +46,10 @@ class _PantallaLoginState extends State<PantallaLogin> {
   void initState() {
     super.initState();
     _focoUsuario.addListener(() {
-      if (!_focoUsuario.hasFocus) _alDejarUsuario();
+      if (!_focoUsuario.hasFocus) _alCompletarCredenciales();
     });
     _focoContrasena.addListener(() {
-      if (_focoContrasena.hasFocus) _alDejarUsuario();
+      if (!_focoContrasena.hasFocus) _alCompletarCredenciales();
     });
   }
 
@@ -71,37 +71,49 @@ class _PantallaLoginState extends State<PantallaLogin> {
         servicio: 'Colocación de manilla',
       ));
 
-  Future<void> _alDejarUsuario() async {
-    final usuario = _usuario.text.trim();
-    if (usuario.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _servidores = const <ServidorConexion>[];
-        _servidor = null;
-        _usuarioCargado = null;
-        _intentoServidores = false;
-        _cargandoServidores = false;
-      });
-      return;
-    }
-    if (_cargandoServidores || _usuarioCargado == usuario) return;
-    _usuarioCargado = usuario;
+  String get _credenciales => '${_usuario.text.trim()}\n${_contrasena.text}';
+
+  bool get _completas => _usuario.text.trim().isNotEmpty && _contrasena.text.isNotEmpty;
+
+  // Los servidores dependen del token de este usuario y contraseña: si cambian, la lista ya no vale.
+  void _alCambiarCredenciales() {
+    if (_credencialesCargadas == null || _credenciales == _credencialesCargadas) return;
+    setState(() {
+      _servidores = const <ServidorConexion>[];
+      _servidor = null;
+      _credencialesCargadas = null;
+      _intentoServidores = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _alCompletarCredenciales() async {
+    if (!mounted || !_completas || _cargandoServidores) return;
+    if (_credenciales == _credencialesCargadas) return;
     await _cargarServidores();
   }
 
   Future<void> _cargarServidores() async {
-    final usuario = _usuario.text.trim();
-    if (usuario.isEmpty) {
-      setState(() => _error = 'Escribe el usuario para ver los servidores.');
+    if (!_completas) {
+      setState(() => _error = 'Escribe el usuario y la contraseña para ver los servidores.');
       return;
     }
+    final credenciales = _credenciales;
     setState(() {
+      _credencialesCargadas = credenciales;
       _cargandoServidores = true;
       _intentoServidores = true;
       _error = null;
     });
-    final resultado = await _api.listarServidores();
-    if (!mounted || _usuario.text.trim() != usuario) return;
+    final resultado = await _api.listarServidores(
+      usuario: _usuario.text.trim(),
+      contrasena: _contrasena.text,
+    );
+    if (!mounted) return;
+    if (_credenciales != credenciales) {
+      setState(() => _cargandoServidores = false);
+      return;
+    }
     switch (resultado) {
       case OkApi(valor: final lista):
         setState(() {
@@ -113,17 +125,24 @@ class _PantallaLoginState extends State<PantallaLogin> {
       case FalloApi(mensaje: final mensaje):
         setState(() {
           _cargandoServidores = false;
+          _servidores = const <ServidorConexion>[];
+          _servidor = null;
           _error = mensaje;
         });
     }
   }
 
   Future<void> _entrar() async {
-    final servidor = _servidor;
-    if (_usuario.text.trim().isEmpty || _contrasena.text.isEmpty) {
+    if (!_completas) {
       setState(() => _error = 'Escribe el usuario y la contraseña.');
       return;
     }
+    if (_credenciales != _credencialesCargadas || _servidores.isEmpty) {
+      await _cargarServidores();
+      if (mounted && _servidores.isNotEmpty) setState(() => _error = 'Elige el servidor.');
+      return;
+    }
+    final servidor = _servidor;
     if (servidor == null) {
       setState(() => _error = 'Elige el servidor.');
       return;
@@ -212,24 +231,16 @@ class _PantallaLoginState extends State<PantallaLogin> {
                           textInputAction: TextInputAction.next,
                           autocorrect: false,
                           decoration: const InputDecoration(labelText: 'Usuario'),
-                          onChanged: (valor) {
-                            if (_usuarioCargado != null && valor.trim() != _usuarioCargado) {
-                              setState(() {
-                                _servidores = const <ServidorConexion>[];
-                                _servidor = null;
-                                _usuarioCargado = null;
-                                _intentoServidores = false;
-                              });
-                            }
-                          },
-                          onEditingComplete: _alDejarUsuario,
+                          onChanged: (_) => _alCambiarCredenciales(),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: _contrasena,
                           focusNode: _focoContrasena,
                           obscureText: _ocultar,
-                          textInputAction: TextInputAction.next,
+                          textInputAction: TextInputAction.done,
+                          onChanged: (_) => _alCambiarCredenciales(),
+                          onTapOutside: (_) => _focoContrasena.unfocus(),
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
                             suffixIcon: IconButton(

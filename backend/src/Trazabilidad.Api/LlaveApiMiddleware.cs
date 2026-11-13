@@ -78,12 +78,11 @@ public sealed class LlaveApiMiddleware
         if (RutasPublicas.Contains(contexto.Request.Path.Value, StringComparer.OrdinalIgnoreCase))
             return true;
 
-        if (HttpMethods.IsPost(contexto.Request.Method)
-            && string.Equals(contexto.Request.Path.Value, "/api/v1/sesiones", StringComparison.OrdinalIgnoreCase))
-            return true;
+        if (!HttpMethods.IsPost(contexto.Request.Method))
+            return false;
 
-        return HttpMethods.IsGet(contexto.Request.Method)
-            && string.Equals(contexto.Request.Path.Value, "/api/v1/servidores", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(contexto.Request.Path.Value, "/api/v1/sesiones", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(contexto.Request.Path.Value, "/api/v1/servidores", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool RequiereEmpresa(HttpContext contexto)

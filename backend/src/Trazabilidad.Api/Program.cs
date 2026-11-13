@@ -18,19 +18,24 @@ Composicion.Registrar(builder);
 
 var app = builder.Build();
 
-app.UseMiddleware<RegistroSolicitudMiddleware>();
-app.UseMiddleware<ManejadorErroresMiddleware>();
 app.Use((contexto, siguiente) =>
 {
     if (HttpMethods.IsOptions(contexto.Request.Method))
     {
         AgregarCors(contexto);
+        contexto.Response.StatusCode = StatusCodes.Status204NoContent;
         return Task.CompletedTask;
     }
 
+    contexto.Response.OnStarting(() =>
+    {
+        AgregarCors(contexto);
+        return Task.CompletedTask;
+    });
     return siguiente();
 });
-
+app.UseMiddleware<RegistroSolicitudMiddleware>();
+app.UseMiddleware<ManejadorErroresMiddleware>();
 app.UseMiddleware<LlaveApiMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
@@ -45,21 +50,18 @@ app.MapGet("/health/ready", (IConfiguration configuracion) =>
 
 RutasTrazabilidad.Map(app);
 
-app.Use((contexto, siguiente) =>
-{
-    AgregarCors(contexto);
-    return siguiente();
-});
-
 app.Run();
 
 static void AgregarCors(HttpContext contexto)
 {
-    contexto.Response.Headers.AccessControlAllowOrigin = contexto.Request.Headers.Origin.Count > 0
-        ? contexto.Request.Headers.Origin[0]!
-        : "*";
-    contexto.Response.Headers.AccessControlAllowHeaders = "*";
-    contexto.Response.Headers.AccessControlAllowMethods = "*";
+    var origen = contexto.Request.Headers.Origin.ToString();
+    var pedidos = contexto.Request.Headers.AccessControlRequestHeaders.ToString();
+    contexto.Response.Headers.AccessControlAllowOrigin = origen.Length > 0 ? origen : "*";
+    contexto.Response.Headers.AccessControlAllowHeaders = pedidos.Length > 0
+        ? pedidos
+        : "Authorization, Content-Type, Accept, X-Codigo-Empresa, X-Servicio-Puesto";
+    contexto.Response.Headers.AccessControlAllowMethods = "GET, POST, OPTIONS";
+    contexto.Response.Headers.Vary = "Origin";
 }
 
 public partial class Program

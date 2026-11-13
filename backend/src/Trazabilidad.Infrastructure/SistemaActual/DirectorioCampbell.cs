@@ -7,71 +7,36 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores, IConsultaServidoresApi
+public sealed record OpcionesCampbell(string IpInicial);
+
+public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores
 {
-    private readonly HttpClient _cliente;
-
-    public DirectorioCampbell(HttpClient cliente)
-    {
-        _cliente = cliente;
-    }
-
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = null,
         PropertyNameCaseInsensitive = true,
     };
 
-    public async Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion)
+    private readonly HttpClient _cliente;
+    private readonly OpcionesCampbell _opciones;
+
+    public DirectorioCampbell(HttpClient cliente, OpcionesCampbell opciones)
     {
-        var servidores = await ObtenerServidores(cancelacion);
+        _cliente = cliente;
+        _opciones = opciones;
+    }
+
+    public async Task<IReadOnlyList<ServidorPublico>> Listar(
+        string usuario,
+        string contrasena,
+        CancellationToken cancelacion)
+    {
+        var servidores = await ObtenerServidores(usuario, contrasena, cancelacion);
         return servidores
-            .Select(servidor => servidor.Descripcion.Trim())
-            .Where(nombre => nombre.Length > 0)
+            .Select(servidor => servidor.Nombre)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(nombre => nombre, StringComparer.OrdinalIgnoreCase)
             .Select(nombre => new ServidorPublico(nombre))
-            .ToArray();
-    }
-
-    public async Task<IReadOnlyList<ServidorApi>> Listar(
-        string token,
-        string servidor,
-        CancellationToken cancelacion)
-    {
-        var sede = (await ObtenerServidores(cancelacion))
-            .FirstOrDefault(item => string.Equals(item.Descripcion.Trim(), servidor, StringComparison.OrdinalIgnoreCase));
-        if (sede is null)
-            return [];
-
-        using var solicitud = new HttpRequestMessage(
-            HttpMethod.Get,
-            "api/Usuarios/obtener-ApiServidores?IpConexion=" + Uri.EscapeDataString(sede.IpConexion));
-        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
-        if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new ErrorNoAutenticado("La sesión ya no es válida.");
-
-        if (!respuesta.IsSuccessStatusCode)
-            throw new ErrorDependencia("No se pudo obtener la lista de servidores.");
-
-        List<ServidorApiDto>? lista;
-        try
-        {
-            lista = await respuesta.Content.ReadFromJsonAsync<List<ServidorApiDto>>(Json, cancelacion);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new ErrorDependencia("La lista de servidores no se pudo leer.");
-        }
-
-        if (lista is null)
-            throw new ErrorDependencia("La lista de servidores no se pudo leer.");
-
-        return lista
-            .Where(item => !string.IsNullOrWhiteSpace(item.Descripcion))
-            .Select(item => new ServidorApi((item.Ip_Conexion ?? "").Trim(), item.Descripcion!.Trim()))
             .ToArray();
     }
 
@@ -81,32 +46,45 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         string servidor,
         CancellationToken cancelacion)
     {
-        var sede = (await ObtenerServidores(cancelacion))
-            .FirstOrDefault(item => string.Equals(item.Descripcion.Trim(), servidor, StringComparison.OrdinalIgnoreCase));
+        var sede = (await ObtenerServidores(usuario, contrasena, cancelacion))
+            .FirstOrDefault(item => string.Equals(item.Nombre, servidor, StringComparison.OrdinalIgnoreCase));
         if (sede is null)
             return null;
 
-        var token = await PedirToken(_cliente, sede, usuario, contrasena, cancelacion);
+        var token = await PedirToken(sede.Ip, usuario, contrasena, cancelacion);
         if (token.Length == 0)
             return null;
 
-        var empresas = await PedirEmpresas(_cliente, sede.IpConexion, usuario, contrasena, token, cancelacion);
+        var empresas = await PedirEmpresas(sede.Ip, usuario, contrasena, token, cancelacion);
         if (empresas.Count == 0)
             return null;
 
         return new UsuarioAutenticado(usuario, empresas);
     }
 
-    private async Task<IReadOnlyList<ServidorCampbell>> ObtenerServidores(CancellationToken cancelacion)
+    private async Task<IReadOnlyList<ServidorCampbell>> ObtenerServidores(
+        string usuario,
+        string contrasena,
+        CancellationToken cancelacion)
     {
-        using var respuesta = await _cliente.GetAsync("api/Usuarios/obtener-servidores", cancelacion);
+        var token = await PedirToken(_opciones.IpInicial, usuario, contrasena, cancelacion);
+        if (token.Length == 0)
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
+        using var solicitud = new HttpRequestMessage(HttpMethod.Get, "api/Usuarios/obtener-ApiServidores");
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
+        if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
         if (!respuesta.IsSuccessStatusCode)
             throw new ErrorDependencia("No se pudo obtener la lista de servidores.");
 
-        List<ServidorCampbellDto>? lista;
+        List<ServidorDto>? lista;
         try
         {
-            lista = await respuesta.Content.ReadFromJsonAsync<List<ServidorCampbellDto>>(Json, cancelacion);
+            lista = await respuesta.Content.ReadFromJsonAsync<List<ServidorDto>>(Json, cancelacion);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -118,35 +96,23 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
 
         return lista
             .Where(item => !string.IsNullOrWhiteSpace(item.Descripcion) && !string.IsNullOrWhiteSpace(item.Ip_Conexion))
-            .Select(item => new ServidorCampbell(
-                item.Ip_Conexion!.Trim(),
-                item.Descripcion!.Trim(),
-                item.Puerto,
-                item.BaseDatos?.Trim() ?? "",
-                item.Usuario?.Trim() ?? "",
-                item.Clave ?? ""))
-            .Where(item => item.Puerto > 0 && item.BaseDatos.Length > 0 && item.UsuarioBd.Length > 0 && item.ClaveBd.Length > 0)
+            .Select(item => new ServidorCampbell(item.Ip_Conexion!.Trim(), item.Descripcion!.Trim()))
             .ToArray();
     }
 
-    private static async Task<string> PedirToken(
-        HttpClient cliente,
-        ServidorCampbell sede,
+    private async Task<string> PedirToken(
+        string ip,
         string usuario,
         string contrasena,
         CancellationToken cancelacion)
     {
-        using var respuesta = await cliente.PostAsJsonAsync(
+        using var respuesta = await _cliente.PostAsJsonAsync(
             "api/authtoken/tokenjwt",
-            new LoginConexionDto
+            new TokenRequestDto
             {
+                Ip_Conexion = ip,
                 Username = usuario,
                 PassWordUsu = contrasena,
-                Ip_Conexion = sede.IpConexion,
-                Puerto = sede.Puerto,
-                BaseDatos = sede.BaseDatos,
-                Usuario = sede.UsuarioBd,
-                Clave = sede.ClaveBd,
             },
             Json,
             cancelacion);
@@ -167,18 +133,17 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         return token?.Token?.Trim() ?? "";
     }
 
-    private static async Task<IReadOnlyList<Empresa>> PedirEmpresas(
-        HttpClient cliente,
+    private async Task<IReadOnlyList<Empresa>> PedirEmpresas(
         string ip,
         string usuario,
         string contrasena,
         string token,
         CancellationToken cancelacion)
     {
-        using var solicitud = new HttpRequestMessage(HttpMethod.Post, "api/Usuarios/obtener-ApiListaEmpresas")
+        using var solicitud = new HttpRequestMessage(HttpMethod.Post, "api/Usuarios/obtener-ApiUsuariosxEmpresas")
         {
             Content = JsonContent.Create(
-                new ListaEmpresasDto
+                new UsuarioEmpresasRequestDto
                 {
                     IpConexion = ip,
                     Usuario = usuario,
@@ -188,17 +153,17 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         };
         solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var respuesta = await cliente.SendAsync(solicitud, cancelacion);
+        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
         if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             return [];
 
         if (!respuesta.IsSuccessStatusCode)
             throw new ErrorDependencia("No se pudieron consultar las empresas del usuario.");
 
-        List<EmpresaCampbellDto>? lista;
+        List<EmpresaDto>? lista;
         try
         {
-            lista = await respuesta.Content.ReadFromJsonAsync<List<EmpresaCampbellDto>>(Json, cancelacion);
+            lista = await respuesta.Content.ReadFromJsonAsync<List<EmpresaDto>>(Json, cancelacion);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -223,50 +188,22 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
             .ToArray();
     }
 
-    private sealed record ServidorCampbell(
-        string IpConexion,
-        string Descripcion,
-        int Puerto,
-        string BaseDatos,
-        string UsuarioBd,
-        string ClaveBd);
+    private sealed record ServidorCampbell(string Ip, string Nombre);
 
-    private sealed class ServidorCampbellDto
+    private sealed class ServidorDto
     {
         public string? Ip_Conexion { get; set; }
 
         public string? Descripcion { get; set; }
-
-        public int Puerto { get; set; }
-
-        public string? BaseDatos { get; set; }
-
-        public string? Usuario { get; set; }
-
-        public string? Clave { get; set; }
     }
 
-    private sealed class LoginConexionDto
+    private sealed class TokenRequestDto
     {
+        public string Ip_Conexion { get; set; } = "";
+
         public string Username { get; set; } = "";
 
         public string PassWordUsu { get; set; } = "";
-
-        public string Nombre { get; set; } = "";
-
-        public string Cedula { get; set; } = "";
-
-        public string Ip_Conexion { get; set; } = "";
-
-        public int Puerto { get; set; }
-
-        public string BaseDatos { get; set; } = "";
-
-        public string Usuario { get; set; } = "";
-
-        public string Clave { get; set; } = "";
-
-        public string Role { get; set; } = "";
     }
 
     private sealed class TokenDto
@@ -274,7 +211,7 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         public string? Token { get; set; }
     }
 
-    private sealed class ListaEmpresasDto
+    private sealed class UsuarioEmpresasRequestDto
     {
         public string IpConexion { get; set; } = "";
 
@@ -283,17 +220,10 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         public string PasswordUsu { get; set; } = "";
     }
 
-    private sealed class EmpresaCampbellDto
+    private sealed class EmpresaDto
     {
         public string? Empresa { get; set; }
 
         public string? Nombre_Empresa { get; set; }
-    }
-
-    private sealed class ServidorApiDto
-    {
-        public string? Ip_Conexion { get; set; }
-
-        public string? Descripcion { get; set; }
     }
 }

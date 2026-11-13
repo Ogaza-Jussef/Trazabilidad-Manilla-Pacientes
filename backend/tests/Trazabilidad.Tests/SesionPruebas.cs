@@ -13,12 +13,46 @@ public class SesionPruebas
         await using var fabrica = new FabricaApi();
         using var cliente = fabrica.CreateClient();
 
-        var respuesta = await cliente.GetAsync("/api/v1/servidores");
+        var respuesta = await cliente.PostAsJsonAsync("/api/v1/servidores", new
+        {
+            usuario = "operador",
+            contrasena = "operador",
+        });
 
         Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
         var json = await Leer(respuesta);
         Assert.Equal("Desarrollo", json.GetProperty("items")[0].GetProperty("nombre").GetString());
         Assert.DoesNotContain("Ip", json.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Debe_pedir_usuario_y_contrasena_para_listar_los_servidores()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+
+        var respuesta = await cliente.PostAsJsonAsync("/api/v1/servidores", new
+        {
+            usuario = "operador",
+            contrasena = "",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, respuesta.StatusCode);
+        Assert.Equal("validation_error", (await Leer(respuesta)).GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Debe_responder_con_cors_aunque_falte_la_sesion()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+        var solicitud = new HttpRequestMessage(HttpMethod.Get, "/api/v1/pacientes?codigoQr=C30-100001");
+        solicitud.Headers.TryAddWithoutValidation("Origin", "http://localhost:8080");
+
+        var respuesta = await cliente.SendAsync(solicitud);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, respuesta.StatusCode);
+        Assert.Equal("http://localhost:8080", respuesta.Headers.GetValues("Access-Control-Allow-Origin").Single());
     }
 
     [Fact]

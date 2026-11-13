@@ -10,8 +10,7 @@ public static class RutasTrazabilidad
     {
         var grupo = app.MapGroup("/api/v1");
 
-        grupo.MapGet("/servidores", ListarServidoresAsync);
-        grupo.MapGet("/servidores-api", ListarServidoresApiAsync);
+        grupo.MapPost("/servidores", ListarServidoresAsync);
         grupo.MapPost("/sesiones", IniciarSesionAsync);
 
         grupo.MapGet("/servicios", () =>
@@ -61,29 +60,34 @@ public static class RutasTrazabilidad
     }
 
     private static async Task<IResult> ListarServidoresAsync(
-        ICatalogoServidores catalogo,
+        HttpContext contexto,
+        JsonSerializerOptions json,
+        ListarServidores casoUso,
         CancellationToken cancelacion)
     {
-        var servidores = await catalogo.Listar(cancelacion);
+        ServidoresRequest? solicitud;
+        try
+        {
+            solicitud = await contexto.Request.ReadFromJsonAsync<ServidoresRequest>(json, cancelacion);
+        }
+        catch (JsonException)
+        {
+            throw new ErrorValidacion(
+                "El cuerpo JSON no es válido.",
+                new DetalleValidacion("body", "json"));
+        }
+
+        if (solicitud is null)
+        {
+            throw new ErrorValidacion(
+                "El cuerpo JSON no es válido.",
+                new DetalleValidacion("body", "json"));
+        }
+
+        var servidores = await casoUso.Ejecutar(solicitud.Usuario, solicitud.Contrasena, cancelacion);
         return Results.Ok(new
         {
             items = servidores.Select(servidor => new ServidorPublicoResponse(servidor.Nombre)).ToArray(),
-        });
-    }
-
-    private static async Task<IResult> ListarServidoresApiAsync(
-        HttpContext contexto,
-        IConsultaServidoresApi consulta,
-        CancellationToken cancelacion)
-    {
-        var sesion = contexto.Items["Sesion"] as SesionActiva;
-        if (sesion is null)
-            return Results.Unauthorized();
-
-        var servidores = await consulta.Listar(sesion.Token, sesion.Servidor, cancelacion);
-        return Results.Ok(new
-        {
-            items = servidores.Select(servidor => new ServidorApiResponse(servidor.Ip, servidor.Nombre)).ToArray(),
         });
     }
 

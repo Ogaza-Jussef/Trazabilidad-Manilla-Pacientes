@@ -1,69 +1,95 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Trazabilidad.Domain;
 using Trazabilidad.Infrastructure.SistemaActual;
 
 namespace Trazabilidad.Tests;
 
 public class DirectorioCampbellPruebas
 {
+    private const string IpInicial = "10.0.0.1";
+    private const string IpSede = "10.0.0.8";
+
     [Fact]
-    public async Task Debe_publicar_solo_el_nombre_del_servidor()
+    public async Task Debe_pedir_el_token_antes_de_listar_los_servidores()
     {
-        var controlador = new Controlador(solicitud =>
+        var llamadas = new List<string>();
+        var controlador = new Controlador(async solicitud =>
         {
-            Assert.EndsWith("/api/Usuarios/obtener-servidores", solicitud.RequestUri?.AbsolutePath, StringComparison.Ordinal);
+            var ruta = solicitud.RequestUri?.AbsolutePath ?? "";
+            llamadas.Add(ruta);
+            if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
+            {
+                var cuerpo = await LeerCuerpo(solicitud);
+                Assert.Equal(IpInicial, cuerpo.GetProperty("Ip_Conexion").GetString());
+                Assert.Equal("ana", cuerpo.GetProperty("Username").GetString());
+                Assert.Equal("clave", cuerpo.GetProperty("PassWordUsu").GetString());
+                return Json(HttpStatusCode.OK, new { token = "token-inicial" });
+            }
+
+            Assert.EndsWith("/api/Usuarios/obtener-ApiServidores", ruta, StringComparison.Ordinal);
+            Assert.Equal(HttpMethod.Get, solicitud.Method);
+            Assert.Equal("Bearer", solicitud.Headers.Authorization?.Scheme);
+            Assert.Equal("token-inicial", solicitud.Headers.Authorization?.Parameter);
             return Json(HttpStatusCode.OK, new[]
             {
-                new
-                {
-                    Ip_Conexion = "10.0.0.8",
-                    Descripcion = "Campbell",
-                    Puerto = 3306,
-                    BaseDatos = "bd",
-                    Usuario = "cuenta",
-                    Clave = "secreto",
-                },
+                new { Ip_Conexion = IpSede, Descripcion = "Campbell" },
+                new { Ip_Conexion = "10.0.0.9", Descripcion = "Bahia" },
             });
         });
         var directorio = Directorio(controlador);
 
-        var servidores = await directorio.Listar(CancellationToken.None);
+        var servidores = await directorio.Listar("ana", "clave", CancellationToken.None);
 
-        var unico = Assert.Single(servidores);
-        Assert.Equal("Campbell", unico.Nombre);
+        Assert.Equal(["Bahia", "Campbell"], servidores.Select(servidor => servidor.Nombre).ToArray());
+        Assert.Equal(2, llamadas.Count);
+        Assert.EndsWith("/api/authtoken/tokenjwt", llamadas[0], StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Debe_entrar_con_el_token_y_las_empresas_del_usuario()
+    public async Task Debe_fallar_si_los_servidores_rechazan_el_token()
     {
         var controlador = new Controlador(solicitud =>
         {
             var ruta = solicitud.RequestUri?.AbsolutePath ?? "";
-            if (ruta.EndsWith("/api/Usuarios/obtener-servidores", StringComparison.Ordinal))
+            return Task.FromResult(ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal)
+                ? Json(HttpStatusCode.OK, new { token = "token-inicial" })
+                : new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        });
+        var directorio = Directorio(controlador);
+
+        await Assert.ThrowsAsync<ErrorNoAutenticado>(
+            () => directorio.Listar("ana", "clave", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Debe_entrar_con_el_token_de_la_sede_y_las_empresas_del_usuario()
+    {
+        var controlador = new Controlador(async solicitud =>
+        {
+            var ruta = solicitud.RequestUri?.AbsolutePath ?? "";
+            if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
+            {
+                var ip = (await LeerCuerpo(solicitud)).GetProperty("Ip_Conexion").GetString();
+                return Json(HttpStatusCode.OK, new { token = ip == IpSede ? "token-sede" : "token-inicial" });
+            }
+
+            if (ruta.EndsWith("/api/Usuarios/obtener-ApiServidores", StringComparison.Ordinal))
             {
                 return Json(HttpStatusCode.OK, new[]
                 {
-                    new
-                    {
-                        Ip_Conexion = "10.0.0.8",
-                        Descripcion = "Campbell",
-                        Puerto = 3306,
-                        BaseDatos = "bd",
-                        Usuario = "cuenta",
-                        Clave = "secreto",
-                    },
+                    new { Ip_Conexion = IpSede, Descripcion = "Campbell" },
                 });
             }
 
-            if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
-            {
-                return Json(HttpStatusCode.OK, new { token = "token-campbell" });
-            }
-
-            Assert.EndsWith("/api/Usuarios/obtener-ApiListaEmpresas", ruta, StringComparison.Ordinal);
+            Assert.EndsWith("/api/Usuarios/obtener-ApiUsuariosxEmpresas", ruta, StringComparison.Ordinal);
             Assert.Equal("Bearer", solicitud.Headers.Authorization?.Scheme);
-            Assert.Equal("token-campbell", solicitud.Headers.Authorization?.Parameter);
+            Assert.Equal("token-sede", solicitud.Headers.Authorization?.Parameter);
+            var cuerpo = await LeerCuerpo(solicitud);
+            Assert.Equal(IpSede, cuerpo.GetProperty("IpConexion").GetString());
+            Assert.Equal("ana", cuerpo.GetProperty("Usuario").GetString());
+            Assert.Equal("clave", cuerpo.GetProperty("PasswordUsu").GetString());
             return Json(HttpStatusCode.OK, new[]
             {
                 new { Empresa = "C30", Nombre_Empresa = "Fundacion Campbell" },
@@ -85,26 +111,18 @@ public class DirectorioCampbellPruebas
         var controlador = new Controlador(solicitud =>
         {
             var ruta = solicitud.RequestUri?.AbsolutePath ?? "";
-            if (ruta.EndsWith("/api/Usuarios/obtener-servidores", StringComparison.Ordinal))
+            if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
+                return Task.FromResult(Json(HttpStatusCode.OK, new { token = "token-campbell" }));
+
+            if (ruta.EndsWith("/api/Usuarios/obtener-ApiServidores", StringComparison.Ordinal))
             {
-                return Json(HttpStatusCode.OK, new[]
+                return Task.FromResult(Json(HttpStatusCode.OK, new[]
                 {
-                    new
-                    {
-                        Ip_Conexion = "10.0.0.8",
-                        Descripcion = "Campbell",
-                        Puerto = 3306,
-                        BaseDatos = "bd",
-                        Usuario = "cuenta",
-                        Clave = "secreto",
-                    },
-                });
+                    new { Ip_Conexion = IpSede, Descripcion = "Campbell" },
+                }));
             }
 
-            if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
-                return Json(HttpStatusCode.OK, new { token = "token-campbell" });
-
-            return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
         });
         var directorio = Directorio(controlador);
 
@@ -116,7 +134,14 @@ public class DirectorioCampbellPruebas
     private static DirectorioCampbell Directorio(Controlador controlador)
     {
         var cliente = new HttpClient(controlador) { BaseAddress = new Uri("http://campbell.local/") };
-        return new DirectorioCampbell(cliente);
+        return new DirectorioCampbell(cliente, new OpcionesCampbell(IpInicial));
+    }
+
+    private static async Task<JsonElement> LeerCuerpo(HttpRequestMessage solicitud)
+    {
+        var texto = await solicitud.Content!.ReadAsStringAsync();
+        using var documento = JsonDocument.Parse(texto);
+        return documento.RootElement.Clone();
     }
 
     private static HttpResponseMessage Json(HttpStatusCode estado, object cuerpo) =>
@@ -124,9 +149,9 @@ public class DirectorioCampbellPruebas
 
     private sealed class Controlador : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _responder;
 
-        public Controlador(Func<HttpRequestMessage, HttpResponseMessage> responder)
+        public Controlador(Func<HttpRequestMessage, Task<HttpResponseMessage>> responder)
         {
             _responder = responder;
         }
@@ -134,6 +159,6 @@ public class DirectorioCampbellPruebas
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(_responder(request));
+            _responder(request);
     }
 }

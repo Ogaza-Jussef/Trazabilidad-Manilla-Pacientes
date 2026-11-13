@@ -139,11 +139,17 @@ Ese usuario y esa contraseña solo sirven para probar en local. No existen en Pr
 
 Prefijo `/api/v1`. JSON en camelCase. Las propiedades desconocidas se rechazan. `Cache-Control: no-store`.
 
-Rutas públicas: `GET /health`, `GET /health/ready`, `GET /api/v1/servidores` y `POST /api/v1/sesiones`.
+Rutas públicas: `GET /health`, `GET /health/ready`, `POST /api/v1/servidores` y `POST /api/v1/sesiones`.
 
-`GET /api/v1/servidores` devuelve `{ "items": [{ "nombre": "Campbell" }] }`. No incluye IP ni datos de conexión.
+`POST /api/v1/servidores` recibe `{ "usuario": "...", "contrasena": "..." }` y devuelve `{ "items": [{ "nombre": "Campbell" }] }`. No incluye IP ni datos de conexión.
 
-`Campbell:BaseUrl` en `appsettings.json` apunta a ApiCampbell. Con esa dirección, el ingreso pide el token y después las empresas del usuario. Si la dirección está vacía, en desarrollo sigue el usuario local.
+`Campbell:BaseUrl` en `appsettings.json` apunta a ApiCampbell. Si la dirección está vacía, en desarrollo sigue el usuario local. El ingreso llama a Campbell en este orden:
+
+1. Con usuario y contraseña, `POST api/authtoken/tokenjwt` con `Ip_Conexion` igual a `Campbell:IpInicial`.
+2. Con ese token, `GET api/Usuarios/obtener-ApiServidores`. De ahí sale la lista de servidores.
+3. Al entrar, `POST api/authtoken/tokenjwt` con la IP del servidor elegido y `POST api/Usuarios/obtener-ApiUsuariosxEmpresas` con ese token.
+
+La app Android hace esas llamadas directamente. La versión web las hace por esta API, porque Campbell no acepta llamadas desde el navegador (no envía encabezados CORS).
 
 El resto pide `Authorization: Bearer {token}`. En pacientes y trazabilidad, si el token es de sesión, también pide `X-Codigo-Empresa` y ese código tiene que estar entre las empresas del usuario. Una clave de API, si está configurada, entra sin esa comprobación de empresa.
 

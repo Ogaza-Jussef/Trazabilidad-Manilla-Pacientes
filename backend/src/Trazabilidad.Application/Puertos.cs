@@ -6,8 +6,6 @@ public sealed record Empresa(string Codigo, string Nombre);
 
 public sealed record ServidorPublico(string Nombre);
 
-public sealed record ServidorApi(string Ip, string Nombre);
-
 public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas);
 
 public sealed record SesionActiva(
@@ -27,12 +25,7 @@ public interface IDirectorioUsuarios
 
 public interface ICatalogoServidores
 {
-    Task<IReadOnlyList<ServidorPublico>> Listar(CancellationToken cancelacion);
-}
-
-public interface IConsultaServidoresApi
-{
-    Task<IReadOnlyList<ServidorApi>> Listar(string token, string servidor, CancellationToken cancelacion);
+    Task<IReadOnlyList<ServidorPublico>> Listar(string usuario, string contrasena, CancellationToken cancelacion);
 }
 
 public interface IAlmacenSesiones

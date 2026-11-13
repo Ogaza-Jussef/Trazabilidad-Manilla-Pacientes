@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'ajustes_puesto.dart';
@@ -23,28 +24,24 @@ class FalloApi<T> extends ResultadoApi<T> {
 }
 
 class ServidorConexion {
-  const ServidorConexion({
-    required this.nombre,
-    required this.ip,
-    required this.puerto,
-    required this.baseDatos,
-    required this.usuarioBd,
-    required this.claveBd,
-  });
+  const ServidorConexion({required this.nombre, required this.ip});
 
   final String nombre;
+
+  /// Vacía cuando la lista llega por la API local, que no publica la IP.
   final String ip;
-  final int puerto;
-  final String baseDatos;
-  final String usuarioBd;
-  final String claveBd;
 }
 
 class ApiTrazabilidad {
-  ApiTrazabilidad(this.ajustes, {http.Client? cliente}) : _cliente = cliente ?? http.Client();
+  /// [porApiLocal] hace el ingreso por la API local en vez de llamar a Campbell.
+  /// El navegador lo necesita porque Campbell no acepta llamadas desde otra página.
+  ApiTrazabilidad(this.ajustes, {http.Client? cliente, bool? porApiLocal})
+      : _cliente = cliente ?? http.Client(),
+        _porApiLocal = porApiLocal ?? kIsWeb;
 
   final AjustesPuesto ajustes;
   final http.Client _cliente;
+  final bool _porApiLocal;
 
   Map<String, String> get _encabezados => {
         'Authorization': 'Bearer ${ajustes.token}',
@@ -52,29 +49,38 @@ class ApiTrazabilidad {
         'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
 
-  static final Uri _catalogoCampbell = Uri.parse(
-    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-servidores',
-  );
-  static final Uri _servidoresCampbell = Uri.parse(
-    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-ApiServidores',
-  );
-  static final Uri _tokenCampbell = Uri.parse(
-    'https://appsintranet.esculapiosis.com/ApiCampbell/api/authtoken/tokenjwt',
-  );
-  static final Uri _empresasCampbell = Uri.parse(
-    'https://appsintranet.esculapiosis.com/ApiCampbell/api/Usuarios/obtener-ApiListaEmpresas',
-  );
+  /// Servidor con el que se pide el primer token, antes de que el usuario elija uno.
+  static const ipInicial = '192.168.2.3';
 
-  Future<ResultadoApi<List<ServidorConexion>>> listarServidores() async {
-    final lista = await _listarServidoresApi(token: '');
-    if (lista is FalloApi<List<ServidorConexion>>) return lista;
-    final nombres = (lista as OkApi<List<ServidorConexion>>).valor;
-    final porIp = {for (final servidor in nombres) servidor.ip: servidor};
+  static const _campbell = 'https://appsintranet.esculapiosis.com/ApiCampbell';
+  static final Uri _tokenCampbell = Uri.parse('$_campbell/api/authtoken/tokenjwt');
+  static final Uri _servidoresCampbell = Uri.parse('$_campbell/api/Usuarios/obtener-ApiServidores');
+  static final Uri _empresasCampbell = Uri.parse('$_campbell/api/Usuarios/obtener-ApiUsuariosxEmpresas');
+
+  static const _json = {'Accept': 'application/json', 'Content-Type': 'application/json'};
+  static const _espera = Duration(seconds: 20);
+
+  /// Pide el token con el usuario y la contraseña y, con ese token, la lista de servidores.
+  Future<ResultadoApi<List<ServidorConexion>>> listarServidores({
+    required String usuario,
+    required String contrasena,
+  }) async {
+    if (_porApiLocal) return _listarServidoresLocal(usuario, contrasena);
 
     try {
-      final respuesta = await _cliente
-          .get(_catalogoCampbell, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 20));
+      final token = await _pedirToken(ip: ipInicial, usuario: usuario, contrasena: contrasena);
+      if (token is FalloApi<String>) return FalloApi(token.mensaje, token.estado);
+
+      final respuesta = await _cliente.get(
+        _servidoresCampbell,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${(token as OkApi<String>).valor}',
+        },
+      ).timeout(_espera);
+      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
+        return FalloApi('El token no fue aceptado para listar los servidores.', respuesta.statusCode);
+      }
       if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
         return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
       }
@@ -85,62 +91,13 @@ class ApiTrazabilidad {
       final servidores = <ServidorConexion>[];
       final vistos = <String>{};
       for (final item in decodificado.whereType<Map>()) {
-        final ip = (item['Ip_Conexion'] ?? '').toString().trim();
-        final base = porIp[ip];
-        if (base == null) continue;
-        if (!vistos.add(base.nombre.toLowerCase())) continue;
-        servidores.add(ServidorConexion(
-          nombre: base.nombre,
-          ip: ip,
-          puerto: int.tryParse('${item['Puerto']}') ?? 0,
-          baseDatos: (item['BaseDatos'] ?? '').toString().trim(),
-          usuarioBd: (item['Usuario'] ?? '').toString().trim(),
-          claveBd: (item['Clave'] ?? '').toString(),
-        ));
-      }
-      servidores.sort((a, b) => a.nombre.compareTo(b.nombre));
-      return OkApi(servidores, respuesta.statusCode);
-    } on TimeoutException {
-      return const FalloApi('La API no respondió a tiempo.', 0);
-    } catch (_) {
-      return const FalloApi('No se pudo conectar con el servidor.', 0);
-    }
-  }
-
-  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresApi({
-    required String token,
-    String ip = '',
-  }) async {
-    try {
-      final uri = ip.isEmpty
-          ? _servidoresCampbell
-          : _servidoresCampbell.replace(queryParameters: {'IpConexion': ip});
-      final encabezados = <String, String>{'Accept': 'application/json'};
-      if (token.isNotEmpty) encabezados['Authorization'] = 'Bearer $token';
-      final respuesta = await _cliente
-          .get(uri, headers: encabezados)
-          .timeout(const Duration(seconds: 20));
-      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
-        return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
-      }
-      final decodificado = jsonDecode(respuesta.body);
-      if (decodificado is! List) {
-        return const FalloApi('La lista de servidores no se pudo leer.', 0);
-      }
-      final servidores = <ServidorConexion>[];
-      for (final item in decodificado.whereType<Map>()) {
         final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
-        final ipConexion = (item['Ip_Conexion'] ?? item['ip_Conexion'] ?? '').toString().trim();
-        if (nombre.isEmpty || ipConexion.isEmpty) continue;
-        servidores.add(ServidorConexion(
-          nombre: nombre,
-          ip: ipConexion,
-          puerto: 0,
-          baseDatos: 'bd',
-          usuarioBd: '',
-          claveBd: '',
-        ));
+        final ip = (item['Ip_Conexion'] ?? item['ip_Conexion'] ?? '').toString().trim();
+        if (nombre.isEmpty || ip.isEmpty) continue;
+        if (!vistos.add(nombre.toLowerCase())) continue;
+        servidores.add(ServidorConexion(nombre: nombre, ip: ip));
       }
+      servidores.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
       return OkApi(servidores, respuesta.statusCode);
     } on TimeoutException {
       return const FalloApi('La API no respondió a tiempo.', 0);
@@ -149,81 +106,119 @@ class ApiTrazabilidad {
     }
   }
 
+  /// Pide el token para el servidor elegido y consulta las empresas del usuario.
   Future<ResultadoApi<Ingreso>> iniciarSesion({
     required String usuario,
     required String contrasena,
     required ServidorConexion servidor,
   }) async {
-    try {
-      final tokenRespuesta = await _cliente
-          .post(
-            _tokenCampbell,
-            headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'Username': usuario,
-              'PassWordUsu': contrasena,
-              'Nombre': '',
-              'Cedula': '',
-              'Ip_Conexion': servidor.ip,
-              'Puerto': servidor.puerto,
-              'BaseDatos': servidor.baseDatos,
-              'Usuario': servidor.usuarioBd,
-              'Clave': servidor.claveBd,
-              'Role': '',
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-      if (tokenRespuesta.statusCode < 200 || tokenRespuesta.statusCode >= 300) {
-        return const FalloApi('Usuario o contraseña incorrectos.', 401);
-      }
-      final tokenJson = jsonDecode(tokenRespuesta.body);
-      final token = tokenJson is Map ? (tokenJson['token'] ?? tokenJson['Token'] ?? '').toString() : '';
-      if (token.isEmpty) {
-        return const FalloApi('Usuario o contraseña incorrectos.', 401);
-      }
+    if (_porApiLocal) return _iniciarSesionLocal(usuario, contrasena, servidor.nombre);
 
-      final empresasRespuesta = await _cliente
+    try {
+      final resultado = await _pedirToken(ip: servidor.ip, usuario: usuario, contrasena: contrasena);
+      if (resultado is FalloApi<String>) return FalloApi(resultado.mensaje, resultado.estado);
+      final token = (resultado as OkApi<String>).valor;
+
+      final respuesta = await _cliente
           .post(
             _empresasCampbell,
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
+            headers: {..._json, 'Authorization': 'Bearer $token'},
             body: jsonEncode({
               'IpConexion': servidor.ip,
               'Usuario': usuario,
               'PasswordUsu': contrasena,
             }),
           )
-          .timeout(const Duration(seconds: 20));
-      if (empresasRespuesta.statusCode == 401 || empresasRespuesta.statusCode == 403) {
+          .timeout(_espera);
+      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
         return const FalloApi('Usuario o contraseña incorrectos.', 401);
       }
-      if (empresasRespuesta.statusCode < 200 || empresasRespuesta.statusCode >= 300) {
-        return FalloApi('No se pudieron consultar las empresas.', empresasRespuesta.statusCode);
+      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
+        return FalloApi('No se pudieron consultar las empresas.', respuesta.statusCode);
       }
-      final empresasJson = jsonDecode(empresasRespuesta.body);
-      if (empresasJson is! List) {
+      final decodificado = jsonDecode(respuesta.body);
+      if (decodificado is! List) {
         return const FalloApi('La lista de empresas no se pudo leer.', 0);
       }
       final empresas = <EmpresaAsociada>[];
-      for (final item in empresasJson.whereType<Map>()) {
+      final vistas = <String>{};
+      for (final item in decodificado.whereType<Map>()) {
         final codigo = (item['Empresa'] ?? item['empresa'] ?? '').toString().trim();
-        var nombre = (item['Nombre_Empresa'] ?? item['nombre_Empresa'] ?? item['nombre'] ?? '').toString().trim();
-        if (codigo.isEmpty) continue;
+        var nombre = (item['Nombre_Empresa'] ?? item['nombre_Empresa'] ?? '').toString().trim();
+        if (codigo.isEmpty || !vistas.add(codigo.toLowerCase())) continue;
         if (nombre.isEmpty) nombre = codigo;
         empresas.add(EmpresaAsociada(codigo: codigo, nombre: nombre));
       }
       if (empresas.isEmpty) {
         return const FalloApi('El usuario no tiene empresas asociadas.', 401);
       }
-      return OkApi(Ingreso(token: token, usuario: usuario, empresas: empresas), empresasRespuesta.statusCode);
+      return OkApi(Ingreso(token: token, usuario: usuario, empresas: empresas), respuesta.statusCode);
     } on TimeoutException {
       return const FalloApi('La API no respondió a tiempo.', 0);
     } catch (_) {
       return const FalloApi('No se pudo conectar con el servidor.', 0);
     }
+  }
+
+  Future<ResultadoApi<String>> _pedirToken({
+    required String ip,
+    required String usuario,
+    required String contrasena,
+  }) async {
+    final respuesta = await _cliente
+        .post(
+          _tokenCampbell,
+          headers: _json,
+          body: jsonEncode({
+            'Ip_Conexion': ip,
+            'Username': usuario,
+            'PassWordUsu': contrasena,
+          }),
+        )
+        .timeout(_espera);
+    if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
+      return FalloApi('No se pudo generar el token del usuario.', respuesta.statusCode);
+    }
+    final decodificado = jsonDecode(respuesta.body);
+    final token = decodificado is Map ? (decodificado['token'] ?? decodificado['Token'] ?? '').toString().trim() : '';
+    if (token.isEmpty) {
+      return FalloApi('No se pudo generar el token del usuario.', respuesta.statusCode);
+    }
+    return OkApi(token, respuesta.statusCode);
+  }
+
+  Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresLocal(String usuario, String contrasena) {
+    return _enviar(
+      () => _cliente
+          .post(
+            Uri.parse('${ajustes.urlBase}/api/v1/servidores'),
+            headers: _json,
+            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena}),
+          )
+          .timeout(_espera),
+      (json, estado) {
+        final items = json['items'];
+        if (items is! List) return const <ServidorConexion>[];
+        return [
+          for (final item in items.whereType<Map>())
+            if ((item['nombre'] ?? '').toString().trim().isNotEmpty)
+              ServidorConexion(nombre: item['nombre'].toString().trim(), ip: ''),
+        ];
+      },
+    );
+  }
+
+  Future<ResultadoApi<Ingreso>> _iniciarSesionLocal(String usuario, String contrasena, String servidor) {
+    return _enviar(
+      () => _cliente
+          .post(
+            Uri.parse('${ajustes.urlBase}/api/v1/sesiones'),
+            headers: _json,
+            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena, 'servidor': servidor}),
+          )
+          .timeout(_espera),
+      (json, estado) => Ingreso.desdeJson(json),
+    );
   }
 
   Future<ResultadoApi<void>> probarConexion() async {
