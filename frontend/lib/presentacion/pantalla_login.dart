@@ -20,11 +20,13 @@ class PantallaLogin extends StatefulWidget {
 class _PantallaLoginState extends State<PantallaLogin> {
   static String get _urlApi {
     if (kIsWeb) {
-      final host = Uri.base.host;
+      final pagina = Uri.base;
+      final host = pagina.host;
       if (host.isEmpty || host == 'localhost' || host == '127.0.0.1') {
         return 'http://localhost:5080';
       }
-      return 'http://$host:5080';
+      final esquema = pagina.scheme == 'https' ? 'https' : 'http';
+      return '$esquema://$host:5080';
     }
     return 'http://10.0.2.2:5080';
   }
