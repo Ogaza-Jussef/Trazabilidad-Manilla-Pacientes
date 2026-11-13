@@ -11,3 +11,4 @@ frontend/.flutter-plugins-dependencies
 backend/nuget.offline.config
 backend/restore.log
 appsettings.*.local.json
+despliegue/salida/
