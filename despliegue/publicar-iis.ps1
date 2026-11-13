@@ -1,11 +1,11 @@
 ﻿# Arma las dos carpetas que se copian al servidor.
 # En IIS, con el Hosting Bundle de .NET 9 y el módulo URL Rewrite:
 #   Aplicación IIS /TrazabilidadManillas   carpeta salida\web   grupo sin código administrado
-#   Sitio "Trazabilidad.Api" puerto 5080 carpeta salida\api   grupo de aplicaciones sin código administrado
+#   Aplicación IIS /TrazabilidadApi         carpeta salida\api   grupo sin código administrado
+# Las dos aplicaciones van en el mismo sitio HTTPS (puerto 443).
+# El celular no llega al puerto 5080; la página llama a /TrazabilidadApi en ese sitio.
 # El grupo de la API necesita permiso de escritura en la carpeta logs.
 # El entorno Hospital no es Production: así sigue la lista local de pacientes de prueba.
-# La página https://appsintranet.esculapiosis.com/TrazabilidadManillas/ llama a https://<servidor>:5080.
-# El sitio de la API en el puerto 5080 tiene que tener el mismo certificado HTTPS.
 
 $ErrorActionPreference = "Stop"
 $raiz = Split-Path -Parent $PSScriptRoot

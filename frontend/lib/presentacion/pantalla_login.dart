@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../datos/ajustes_puesto.dart';
 import '../datos/api_trazabilidad.dart';
+import '../datos/url_api.dart';
 import '../tema/tema_sis.dart';
 import 'pantalla_empresas.dart';
 import 'widgets_sis/widgets_sis.dart';
@@ -18,18 +19,7 @@ class PantallaLogin extends StatefulWidget {
 }
 
 class _PantallaLoginState extends State<PantallaLogin> {
-  static String get _urlApi {
-    if (kIsWeb) {
-      final pagina = Uri.base;
-      final host = pagina.host;
-      if (host.isEmpty || host == 'localhost' || host == '127.0.0.1') {
-        return 'http://localhost:5080';
-      }
-      final esquema = pagina.scheme == 'https' ? 'https' : 'http';
-      return '$esquema://$host:5080';
-    }
-    return 'http://10.0.2.2:5080';
-  }
+  static String get _urlApi => urlApiPara(Uri.base, esWeb: kIsWeb);
 
   final _usuario = TextEditingController();
   final _contrasena = TextEditingController();
