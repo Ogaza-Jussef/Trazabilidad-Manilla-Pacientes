@@ -7,8 +7,6 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed record OpcionesCampbell(string IpInicial);
-
 public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores
 {
     private static readonly JsonSerializerOptions Json = new()
@@ -17,13 +15,15 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly HttpClient _cliente;
-    private readonly OpcionesCampbell _opciones;
+    // Campbell exige Ip_Conexion para emitir el token. La lista no depende de ese valor:
+    // el servidor del usuario, Campbell u otro, se toma de la lista al entrar.
+    private const string AperturaCatalogo = "catalogo";
 
-    public DirectorioCampbell(HttpClient cliente, OpcionesCampbell opciones)
+    private readonly HttpClient _cliente;
+
+    public DirectorioCampbell(HttpClient cliente)
     {
         _cliente = cliente;
-        _opciones = opciones;
     }
 
     public async Task<IReadOnlyList<ServidorPublico>> Listar(
@@ -67,7 +67,7 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         string contrasena,
         CancellationToken cancelacion)
     {
-        var token = await PedirToken(_opciones.IpInicial, usuario, contrasena, cancelacion);
+        var token = await PedirToken(AperturaCatalogo, usuario, contrasena, cancelacion);
         if (token.Length == 0)
             throw new ErrorNoAutenticado("No se pudo validar el usuario.");
 

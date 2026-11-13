@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'ajustes_puesto.dart';
@@ -24,24 +23,18 @@ class FalloApi<T> extends ResultadoApi<T> {
 }
 
 class ServidorConexion {
-  const ServidorConexion({required this.nombre, required this.ip});
+  const ServidorConexion({required this.nombre});
 
   final String nombre;
-
-  /// Vacía cuando la lista llega por la API local, que no publica la IP.
-  final String ip;
 }
 
 class ApiTrazabilidad {
-  /// [porApiLocal] hace el ingreso por la API local en vez de llamar a Campbell.
-  /// El navegador lo necesita porque Campbell no acepta llamadas desde otra página.
-  ApiTrazabilidad(this.ajustes, {http.Client? cliente, bool? porApiLocal})
-      : _cliente = cliente ?? http.Client(),
-        _porApiLocal = porApiLocal ?? kIsWeb;
+  /// El navegador habla con esta API. Campbell no acepta llamadas desde otra página,
+  /// y la IP del servidor la resuelve la API según el nombre que eligió la persona.
+  ApiTrazabilidad(this.ajustes, {http.Client? cliente}) : _cliente = cliente ?? http.Client();
 
   final AjustesPuesto ajustes;
   final http.Client _cliente;
-  final bool _porApiLocal;
 
   Map<String, String> get _encabezados => {
         'Authorization': 'Bearer ${ajustes.token}',
@@ -49,142 +42,24 @@ class ApiTrazabilidad {
         'X-Codigo-Empresa': ajustes.codigoEmpresa,
       };
 
-  /// Servidor con el que se pide el primer token, antes de que el usuario elija uno.
-  static const ipInicial = '192.168.2.3';
-
-  static const _campbell = 'https://appsintranet.esculapiosis.com/ApiCampbell';
-  static final Uri _tokenCampbell = Uri.parse('$_campbell/api/authtoken/tokenjwt');
-  static final Uri _servidoresCampbell = Uri.parse('$_campbell/api/Usuarios/obtener-ApiServidores');
-  static final Uri _empresasCampbell = Uri.parse('$_campbell/api/Usuarios/obtener-ApiUsuariosxEmpresas');
-
   static const _json = {'Accept': 'application/json', 'Content-Type': 'application/json'};
   static const _espera = Duration(seconds: 20);
 
-  /// Pide el token con el usuario y la contraseña y, con ese token, la lista de servidores.
+  /// Pide a la API la lista de servidores de este usuario. La respuesta solo trae nombres.
   Future<ResultadoApi<List<ServidorConexion>>> listarServidores({
     required String usuario,
     required String contrasena,
-  }) async {
-    if (_porApiLocal) return _listarServidoresLocal(usuario, contrasena);
-
-    try {
-      final token = await _pedirToken(ip: ipInicial, usuario: usuario, contrasena: contrasena);
-      if (token is FalloApi<String>) return FalloApi(token.mensaje, token.estado);
-
-      final respuesta = await _cliente.get(
-        _servidoresCampbell,
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer ${(token as OkApi<String>).valor}',
-        },
-      ).timeout(_espera);
-      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
-        return FalloApi('El token no fue aceptado para listar los servidores.', respuesta.statusCode);
-      }
-      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
-        return FalloApi('No se pudo obtener los servidores.', respuesta.statusCode);
-      }
-      final decodificado = jsonDecode(respuesta.body);
-      if (decodificado is! List) {
-        return const FalloApi('La lista de servidores no se pudo leer.', 0);
-      }
-      final servidores = <ServidorConexion>[];
-      final vistos = <String>{};
-      for (final item in decodificado.whereType<Map>()) {
-        final nombre = (item['Descripcion'] ?? item['descripcion'] ?? '').toString().trim();
-        final ip = (item['Ip_Conexion'] ?? item['ip_Conexion'] ?? '').toString().trim();
-        if (nombre.isEmpty || ip.isEmpty) continue;
-        if (!vistos.add(nombre.toLowerCase())) continue;
-        servidores.add(ServidorConexion(nombre: nombre, ip: ip));
-      }
-      servidores.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
-      return OkApi(servidores, respuesta.statusCode);
-    } on TimeoutException {
-      return const FalloApi('La API no respondió a tiempo.', 0);
-    } catch (_) {
-      return const FalloApi('No se pudo conectar con el servidor.', 0);
-    }
+  }) {
+    return _listarServidoresLocal(usuario, contrasena);
   }
 
-  /// Pide el token para el servidor elegido y consulta las empresas del usuario.
+  /// Entra con el nombre del servidor elegido. La API usa la IP de ese servidor.
   Future<ResultadoApi<Ingreso>> iniciarSesion({
     required String usuario,
     required String contrasena,
     required ServidorConexion servidor,
-  }) async {
-    if (_porApiLocal) return _iniciarSesionLocal(usuario, contrasena, servidor.nombre);
-
-    try {
-      final resultado = await _pedirToken(ip: servidor.ip, usuario: usuario, contrasena: contrasena);
-      if (resultado is FalloApi<String>) return FalloApi(resultado.mensaje, resultado.estado);
-      final token = (resultado as OkApi<String>).valor;
-
-      final respuesta = await _cliente
-          .post(
-            _empresasCampbell,
-            headers: {..._json, 'Authorization': 'Bearer $token'},
-            body: jsonEncode({
-              'IpConexion': servidor.ip,
-              'Usuario': usuario,
-              'PasswordUsu': contrasena,
-            }),
-          )
-          .timeout(_espera);
-      if (respuesta.statusCode == 401 || respuesta.statusCode == 403) {
-        return const FalloApi('Usuario o contraseña incorrectos.', 401);
-      }
-      if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
-        return FalloApi('No se pudieron consultar las empresas.', respuesta.statusCode);
-      }
-      final decodificado = jsonDecode(respuesta.body);
-      if (decodificado is! List) {
-        return const FalloApi('La lista de empresas no se pudo leer.', 0);
-      }
-      final empresas = <EmpresaAsociada>[];
-      final vistas = <String>{};
-      for (final item in decodificado.whereType<Map>()) {
-        final codigo = (item['Empresa'] ?? item['empresa'] ?? '').toString().trim();
-        var nombre = (item['Nombre_Empresa'] ?? item['nombre_Empresa'] ?? '').toString().trim();
-        if (codigo.isEmpty || !vistas.add(codigo.toLowerCase())) continue;
-        if (nombre.isEmpty) nombre = codigo;
-        empresas.add(EmpresaAsociada(codigo: codigo, nombre: nombre));
-      }
-      if (empresas.isEmpty) {
-        return const FalloApi('El usuario no tiene empresas asociadas.', 401);
-      }
-      return OkApi(Ingreso(token: token, usuario: usuario, empresas: empresas), respuesta.statusCode);
-    } on TimeoutException {
-      return const FalloApi('La API no respondió a tiempo.', 0);
-    } catch (_) {
-      return const FalloApi('No se pudo conectar con el servidor.', 0);
-    }
-  }
-
-  Future<ResultadoApi<String>> _pedirToken({
-    required String ip,
-    required String usuario,
-    required String contrasena,
-  }) async {
-    final respuesta = await _cliente
-        .post(
-          _tokenCampbell,
-          headers: _json,
-          body: jsonEncode({
-            'Ip_Conexion': ip,
-            'Username': usuario,
-            'PassWordUsu': contrasena,
-          }),
-        )
-        .timeout(_espera);
-    if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
-      return FalloApi('No se pudo generar el token del usuario.', respuesta.statusCode);
-    }
-    final decodificado = jsonDecode(respuesta.body);
-    final token = decodificado is Map ? (decodificado['token'] ?? decodificado['Token'] ?? '').toString().trim() : '';
-    if (token.isEmpty) {
-      return FalloApi('No se pudo generar el token del usuario.', respuesta.statusCode);
-    }
-    return OkApi(token, respuesta.statusCode);
+  }) {
+    return _iniciarSesionLocal(usuario, contrasena, servidor.nombre);
   }
 
   Future<ResultadoApi<List<ServidorConexion>>> _listarServidoresLocal(String usuario, String contrasena) {
@@ -202,7 +77,7 @@ class ApiTrazabilidad {
         return [
           for (final item in items.whereType<Map>())
             if ((item['nombre'] ?? '').toString().trim().isNotEmpty)
-              ServidorConexion(nombre: item['nombre'].toString().trim(), ip: ''),
+              ServidorConexion(nombre: item['nombre'].toString().trim()),
         ];
       },
     );

@@ -50,9 +50,6 @@ public static class Composicion
                 cliente.BaseAddress = new Uri(campbell.TrimEnd('/') + "/");
                 cliente.Timeout = TimeSpan.FromSeconds(20);
             });
-            var ipInicial = builder.Configuration["Campbell:IpInicial"];
-            builder.Services.AddSingleton(new OpcionesCampbell(
-                string.IsNullOrWhiteSpace(ipInicial) ? "192.168.2.3" : ipInicial.Trim()));
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioCampbell>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioCampbell>());
         }

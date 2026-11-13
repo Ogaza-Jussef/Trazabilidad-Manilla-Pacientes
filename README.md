@@ -143,13 +143,10 @@ Rutas públicas: `GET /health`, `GET /health/ready`, `POST /api/v1/servidores` y
 
 `POST /api/v1/servidores` recibe `{ "usuario": "...", "contrasena": "..." }` y devuelve `{ "items": [{ "nombre": "Campbell" }] }`. No incluye IP ni datos de conexión.
 
-`Campbell:BaseUrl` en `appsettings.json` apunta a ApiCampbell. Si la dirección está vacía, en desarrollo sigue el usuario local. El ingreso llama a Campbell en este orden:
+`Campbell:BaseUrl` en `appsettings.json` apunta a ApiCampbell. Si la dirección está vacía, en desarrollo sigue el usuario local. La versión web hace el ingreso por esta API, porque Campbell no acepta llamadas desde el navegador. El orden contra Campbell es:
 
-1. Con usuario y contraseña, `POST api/authtoken/tokenjwt` con `Ip_Conexion` igual a `Campbell:IpInicial`.
-2. Con ese token, `GET api/Usuarios/obtener-ApiServidores`. De ahí sale la lista de servidores.
-3. Al entrar, `POST api/authtoken/tokenjwt` con la IP del servidor elegido y `POST api/Usuarios/obtener-ApiUsuariosxEmpresas` con ese token.
-
-La app Android hace esas llamadas directamente. La versión web las hace por esta API, porque Campbell no acepta llamadas desde el navegador (no envía encabezados CORS).
+1. Con usuario y contraseña, `POST api/authtoken/tokenjwt` y, con ese token, `GET api/Usuarios/obtener-ApiServidores`. La lista trae los nombres, entre ellos Campbell, y no depende de una IP fija.
+2. Al entrar, `POST api/authtoken/tokenjwt` con la IP del servidor que eligió la persona y `POST api/Usuarios/obtener-ApiUsuariosxEmpresas` con ese token.
 
 El resto pide `Authorization: Bearer {token}`. En pacientes y trazabilidad, si el token es de sesión, también pide `X-Codigo-Empresa` y ese código tiene que estar entre las empresas del usuario. Una clave de API, si está configurada, entra sin esa comprobación de empresa.
 

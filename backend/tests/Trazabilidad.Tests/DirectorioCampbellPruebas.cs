@@ -8,7 +8,6 @@ namespace Trazabilidad.Tests;
 
 public class DirectorioCampbellPruebas
 {
-    private const string IpInicial = "10.0.0.1";
     private const string IpSede = "10.0.0.8";
 
     [Fact]
@@ -22,7 +21,7 @@ public class DirectorioCampbellPruebas
             if (ruta.EndsWith("/api/authtoken/tokenjwt", StringComparison.Ordinal))
             {
                 var cuerpo = await LeerCuerpo(solicitud);
-                Assert.Equal(IpInicial, cuerpo.GetProperty("Ip_Conexion").GetString());
+                Assert.Equal("catalogo", cuerpo.GetProperty("Ip_Conexion").GetString());
                 Assert.Equal("ana", cuerpo.GetProperty("Username").GetString());
                 Assert.Equal("clave", cuerpo.GetProperty("PassWordUsu").GetString());
                 return Json(HttpStatusCode.OK, new { token = "token-inicial" });
@@ -134,7 +133,7 @@ public class DirectorioCampbellPruebas
     private static DirectorioCampbell Directorio(Controlador controlador)
     {
         var cliente = new HttpClient(controlador) { BaseAddress = new Uri("http://campbell.local/") };
-        return new DirectorioCampbell(cliente, new OpcionesCampbell(IpInicial));
+        return new DirectorioCampbell(cliente);
     }
 
     private static async Task<JsonElement> LeerCuerpo(HttpRequestMessage solicitud)
