@@ -3,6 +3,7 @@
 #   Sitio "Trazabilidad"     puerto 80   carpeta salida\web   grupo de aplicaciones sin código administrado
 #   Sitio "Trazabilidad.Api" puerto 5080 carpeta salida\api   grupo de aplicaciones sin código administrado
 # El grupo de la API necesita permiso de escritura en la carpeta logs.
+# El entorno Hospital no es Production: así sigue la lista local de pacientes de prueba.
 # La web llama a http://<servidor>:5080. Los dos sitios deben quedar en HTTP.
 
 $ErrorActionPreference = "Stop"
