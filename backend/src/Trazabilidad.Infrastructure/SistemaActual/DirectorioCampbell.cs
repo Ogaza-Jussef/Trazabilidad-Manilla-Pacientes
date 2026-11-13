@@ -7,7 +7,7 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla
+public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla, IRegistroCapturaManilla
 {
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -97,6 +97,74 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         }
 
         return LeerServicios(texto);
+    }
+
+    public async Task Registrar(
+        string tokenConexion,
+        string empresa,
+        string idServicio,
+        string noCuenta,
+        DateTime fechaHoraCaptura,
+        string usuario,
+        CancellationToken cancelacion)
+    {
+        if (string.IsNullOrWhiteSpace(tokenConexion))
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
+        using var solicitud = new HttpRequestMessage(HttpMethod.Post, "api/Usuarios/ApiRegistrar-TrzManillasPaciente")
+        {
+            Content = JsonContent.Create(
+                new CapturaManillaRequestDto
+                {
+                    Empresa = empresa,
+                    Id_Servicio = idServicio,
+                    NoCuenta = noCuenta,
+                    fecha_hora_captura = fechaHoraCaptura.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
+                    Usuario = usuario,
+                },
+                options: Json),
+        };
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenConexion);
+
+        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
+        if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            var mensaje = await LeerMensaje(respuesta, cancelacion);
+            throw new ErrorDependencia(mensaje ?? "No se pudo registrar la captura de la manilla.");
+        }
+    }
+
+    private static async Task<string?> LeerMensaje(HttpResponseMessage respuesta, CancellationToken cancelacion)
+    {
+        try
+        {
+            var texto = await respuesta.Content.ReadAsStringAsync(cancelacion);
+            using var documento = JsonDocument.Parse(texto);
+            if (documento.RootElement.ValueKind != JsonValueKind.Object)
+                return null;
+
+            foreach (var propiedad in documento.RootElement.EnumerateObject())
+            {
+                if (!string.Equals(propiedad.Name, "Mensaje", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(propiedad.Name, "Message", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var mensaje = propiedad.Value.ValueKind == JsonValueKind.String
+                    ? propiedad.Value.GetString()?.Trim()
+                    : null;
+                if (mensaje is { Length: > 0 and <= 200 })
+                    return mensaje;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private static IReadOnlyList<ServicioManilla> LeerServicios(string texto)
@@ -319,6 +387,19 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
     private sealed class ServiciosManillaRequestDto
     {
         public string Empresa { get; set; } = "";
+
+        public string Usuario { get; set; } = "";
+    }
+
+    private sealed class CapturaManillaRequestDto
+    {
+        public string Empresa { get; set; } = "";
+
+        public string Id_Servicio { get; set; } = "";
+
+        public string NoCuenta { get; set; } = "";
+
+        public string fecha_hora_captura { get; set; } = "";
 
         public string Usuario { get; set; } = "";
     }

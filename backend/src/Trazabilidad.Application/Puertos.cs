@@ -40,6 +40,18 @@ public interface IServiciosManilla
         CancellationToken cancelacion);
 }
 
+public interface IRegistroCapturaManilla
+{
+    Task Registrar(
+        string tokenConexion,
+        string empresa,
+        string idServicio,
+        string noCuenta,
+        DateTime fechaHoraCaptura,
+        string usuario,
+        CancellationToken cancelacion);
+}
+
 public interface IAlmacenSesiones
 {
     SesionActiva Crear(UsuarioAutenticado usuario, string servidor);

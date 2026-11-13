@@ -5,7 +5,7 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.Memoria;
 
-public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla
+public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla, IRegistroCapturaManilla
 {
     private readonly UsuarioAutenticado _usuario;
     private readonly byte[] _contrasena;
@@ -46,4 +46,14 @@ public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoSe
         CancellationToken cancelacion) =>
         Task.FromResult<IReadOnlyList<ServicioManilla>>(
             ServiciosLectura.Orden.Select(servicio => new ServicioManilla(servicio.Nombre)).ToArray());
+
+    public Task Registrar(
+        string tokenConexion,
+        string empresa,
+        string idServicio,
+        string noCuenta,
+        DateTime fechaHoraCaptura,
+        string usuario,
+        CancellationToken cancelacion) =>
+        Task.CompletedTask;
 }

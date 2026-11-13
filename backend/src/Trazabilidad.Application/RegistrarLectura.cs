@@ -8,21 +8,26 @@ public sealed class RegistrarLectura
 {
     private readonly IRepositorioTrazabilidad _repositorio;
     private readonly IConsultaPacientes _pacientes;
+    private readonly IRegistroCapturaManilla _capturas;
     private readonly IReloj _reloj;
 
     public RegistrarLectura(
         IRepositorioTrazabilidad repositorio,
         IConsultaPacientes pacientes,
+        IRegistroCapturaManilla capturas,
         IReloj reloj)
     {
         _repositorio = repositorio;
         _pacientes = pacientes;
+        _capturas = capturas;
         _reloj = reloj;
     }
 
     public async Task<ResultadoRegistro> Ejecutar(
         string? codigoQr,
         string? servicio,
+        SesionActiva? sesion,
+        string? codigoEmpresa,
         CancellationToken cancelacion)
     {
         var codigo = CodigoManilla.Leer(codigoQr);
@@ -49,11 +54,17 @@ public sealed class RegistrarLectura
         }
 
         var paso = ServiciosLectura.Buscar(nombreServicio);
-        if (paso is null)
+        if (paso is null && nombreServicio.Length > 80)
         {
             throw new ErrorValidacion(
                 "El servicio no pertenece al flujo de lectura.",
                 new DetalleValidacion("servicio", "desconocido"));
+        }
+
+        if (sesion is not null
+            && !string.Equals(codigo.CodigoEmpresa, codigoEmpresa?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ErrorProhibido("El código QR no corresponde a la empresa seleccionada.");
         }
 
         var paciente = await _pacientes.Obtener(codigo.CodigoEmpresa, codigo.NumeroCaso, cancelacion);
@@ -71,25 +82,38 @@ public sealed class RegistrarLectura
 
         var existente = await _repositorio.ObtenerPorCasoYServicio(
             codigo.NumeroCaso,
-            paso.Nombre,
+            nombreServicio,
             cancelacion);
         if (existente is not null)
             return new ResultadoRegistro(existente, false);
 
-        var indice = ServiciosLectura.Indice(paso.Nombre);
-        if (indice > 0)
+        if (paso is not null)
         {
-            var anterior = ServiciosLectura.Orden[indice - 1];
-            var previa = await _repositorio.ObtenerPorCasoYServicio(
-                codigo.NumeroCaso,
-                anterior.Nombre,
-                cancelacion);
-            if (previa is null)
+            var indice = ServiciosLectura.Indice(paso.Nombre);
+            if (indice > 0)
             {
-                throw new ErrorConflicto(
-                    $"Falta la captura del servicio anterior: {anterior.Nombre}.");
+                var anterior = ServiciosLectura.Orden[indice - 1];
+                var previa = await _repositorio.ObtenerPorCasoYServicio(
+                    codigo.NumeroCaso,
+                    anterior.Nombre,
+                    cancelacion);
+                if (previa is null)
+                {
+                    throw new ErrorConflicto(
+                        $"Falta la captura del servicio anterior: {anterior.Nombre}.");
+                }
             }
         }
+
+        var ahora = _reloj.Ahora();
+        await _capturas.Registrar(
+            sesion?.TokenConexion ?? "",
+            codigo.CodigoEmpresa,
+            nombreServicio,
+            codigo.NumeroCaso,
+            ahora,
+            sesion?.Usuario ?? "",
+            cancelacion);
 
         var guardada = await _repositorio.Agregar(
             new NuevaTrazabilidad(
@@ -97,8 +121,8 @@ public sealed class RegistrarLectura
                 paciente.Nombre,
                 paciente.Apellido,
                 paciente.NumeroIdentificacion,
-                paso.Nombre,
-                _reloj.Ahora()),
+                nombreServicio,
+                ahora),
             cancelacion);
 
         return new ResultadoRegistro(guardada.Fila, guardada.Creada);

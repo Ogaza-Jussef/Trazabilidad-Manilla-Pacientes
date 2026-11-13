@@ -173,7 +173,9 @@ public static class RutasTrazabilidad
             throw new ErrorProhibido("Este puesto no puede registrar ese servicio.");
         }
 
-        var resultado = await casoUso.Ejecutar(solicitud.CodigoQr, servicio, cancelacion);
+        var sesion = contexto.Items["Sesion"] as SesionActiva;
+        var empresa = contexto.Request.Headers["X-Codigo-Empresa"].ToString();
+        var resultado = await casoUso.Ejecutar(solicitud.CodigoQr, servicio, sesion, empresa, cancelacion);
         var cuerpo = Mapeo.Desde(resultado.Fila);
         if (!resultado.Creada)
         {

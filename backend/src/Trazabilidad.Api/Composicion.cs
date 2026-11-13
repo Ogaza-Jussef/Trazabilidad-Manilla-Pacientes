@@ -53,6 +53,7 @@ public static class Composicion
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioCampbell>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioCampbell>());
             builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioCampbell>());
+            builder.Services.AddSingleton<IRegistroCapturaManilla>(sp => sp.GetRequiredService<DirectorioCampbell>());
         }
         else if (builder.Environment.IsProduction())
         {
@@ -60,6 +61,7 @@ public static class Composicion
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
             builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
+            builder.Services.AddSingleton<IRegistroCapturaManilla>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
         }
         else
         {
@@ -67,6 +69,7 @@ public static class Composicion
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
             builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
+            builder.Services.AddSingleton<IRegistroCapturaManilla>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
         }
 
         builder.Services.AddSingleton<IAlmacenSesiones, AlmacenSesionesMemoria>();

@@ -167,6 +167,54 @@ public class DirectorioCampbellPruebas
         Assert.Null(usuario);
     }
 
+    [Fact]
+    public async Task Debe_registrar_la_captura_del_qr_con_el_token_de_la_sede()
+    {
+        var controlador = new Controlador(async solicitud =>
+        {
+            Assert.EndsWith("/api/Usuarios/ApiRegistrar-TrzManillasPaciente", solicitud.RequestUri?.AbsolutePath, StringComparison.Ordinal);
+            Assert.Equal(HttpMethod.Post, solicitud.Method);
+            Assert.Equal("Bearer", solicitud.Headers.Authorization?.Scheme);
+            Assert.Equal("token-sede", solicitud.Headers.Authorization?.Parameter);
+            var cuerpo = await LeerCuerpo(solicitud);
+            Assert.Equal("C30", cuerpo.GetProperty("Empresa").GetString());
+            Assert.Equal("IQX", cuerpo.GetProperty("Id_Servicio").GetString());
+            Assert.Equal("926667", cuerpo.GetProperty("NoCuenta").GetString());
+            Assert.Equal("2026-11-13 15:21:00", cuerpo.GetProperty("fecha_hora_captura").GetString());
+            Assert.Equal("jogaza", cuerpo.GetProperty("Usuario").GetString());
+            return Json(HttpStatusCode.OK, new { Mensaje = "Manilla de Paciente registrado correctamente." });
+        });
+        var directorio = Directorio(controlador);
+
+        await directorio.Registrar(
+            "token-sede",
+            "C30",
+            "IQX",
+            "926667",
+            new DateTime(2026, 11, 13, 15, 21, 0),
+            "jogaza",
+            CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Debe_avisar_si_campbell_no_puede_registrar_la_captura()
+    {
+        var controlador = new Controlador(_ =>
+            Task.FromResult(Json(HttpStatusCode.InternalServerError, new { Message = "Error." })));
+        var directorio = Directorio(controlador);
+
+        var error = await Assert.ThrowsAsync<ErrorDependencia>(() => directorio.Registrar(
+            "token-sede",
+            "C30",
+            "IQX",
+            "926667",
+            new DateTime(2026, 11, 13, 15, 21, 0),
+            "jogaza",
+            CancellationToken.None));
+
+        Assert.Equal("Error.", error.Message);
+    }
+
     private static DirectorioCampbell Directorio(Controlador controlador)
     {
         var cliente = new HttpClient(controlador) { BaseAddress = new Uri("http://campbell.local/") };

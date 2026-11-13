@@ -60,7 +60,7 @@ class _PantallaResultadoState extends State<PantallaResultado> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        nueva ? 'Lectura registrada' : 'Esta lectura ya estaba registrada',
+                        nueva ? 'Captura del QR registrada' : 'Esta lectura ya estaba registrada',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 8),

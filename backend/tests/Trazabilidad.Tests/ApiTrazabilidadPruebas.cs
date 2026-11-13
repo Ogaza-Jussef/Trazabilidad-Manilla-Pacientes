@@ -109,6 +109,20 @@ public class ApiTrazabilidadPruebas
     }
 
     [Fact]
+    public async Task Debe_registrar_el_servicio_elegido_en_el_puesto()
+    {
+        using var sesion = Abrir();
+        var cliente = sesion.Cliente;
+
+        var respuesta = await Post(cliente, "C30-100001", "IQX");
+
+        Assert.Equal(HttpStatusCode.Created, respuesta.StatusCode);
+        var json = await Json(respuesta);
+        Assert.Equal("IQX", json.GetProperty("servicio").GetString());
+        Assert.Equal("100001", json.GetProperty("numeroCaso").GetString());
+    }
+
+    [Fact]
     public async Task Debe_rechazar_un_paso_si_falta_el_anterior()
     {
         using var sesion = Abrir();

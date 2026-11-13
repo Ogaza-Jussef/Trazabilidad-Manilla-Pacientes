@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:trazabilidad_manillas/datos/ajustes_puesto.dart';
 import 'package:trazabilidad_manillas/datos/api_trazabilidad.dart';
+import 'package:trazabilidad_manillas/datos/modelos.dart';
 
 const _ajustes = AjustesPuesto(
   baseUrl: 'http://api.local:5080',
@@ -94,5 +95,43 @@ void main() {
     final resultado = await api.listarServiciosManilla('C30');
 
     expect((resultado as OkApi<List<String>>).valor, ['Colocación de manilla', 'Paso a Qx']);
+  });
+
+  test('registra la captura con el servicio del puesto y el código del QR', () async {
+    final cliente = MockClient((solicitud) async {
+      expect(solicitud.method, 'POST');
+      expect(solicitud.url.path, '/api/v1/trazabilidad');
+      expect(solicitud.headers['Authorization'], 'Bearer sesion-local');
+      expect(solicitud.headers['X-Codigo-Empresa'], 'C30');
+      expect(solicitud.headers['X-Servicio-Puesto'], 'IQX');
+      expect(jsonDecode(solicitud.body), {'codigoQr': 'C30-926667', 'servicio': 'IQX'});
+      return _json({
+        'id': 1,
+        'numeroCaso': '926667',
+        'nombre': 'Ana',
+        'apellido': 'Perez',
+        'numeroIdentificacion': '10000001',
+        'servicio': 'IQX',
+        'fechaHoraCaptura': '2026-11-13T15:21:00',
+      }, 201);
+    });
+    final api = ApiTrazabilidad(
+      const AjustesPuesto(
+        baseUrl: 'http://api.local:5080',
+        token: 'sesion-local',
+        usuario: 'jogaza',
+        codigoEmpresa: 'C30',
+        nombreEmpresa: 'Fundacion Campbell',
+        servicio: 'IQX',
+      ),
+      cliente: cliente,
+    );
+
+    final resultado = await api.registrarLectura('C30-926667');
+
+    final lectura = (resultado as OkApi<Lectura>).valor;
+    expect(lectura.nueva, isTrue);
+    expect(lectura.numeroCaso, '926667');
+    expect(lectura.servicio, 'IQX');
   });
 }
