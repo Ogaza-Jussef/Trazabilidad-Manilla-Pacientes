@@ -2,11 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trazabilidad_manillas/datos/url_api.dart';
 
 void main() {
-  test('en el sitio publicado la API va en el mismo puerto que la página', () {
-    final pagina = Uri.parse('https://anet.esculapiosis.com/TrazabilidadManillas/');
+  test('en el sitio publicado la API va en la misma carpeta que la página', () {
+    final pagina = Uri.parse('https://appsintranet.esculapiosis.com/TrazabilidadManillas/');
     expect(
       urlApiPara(pagina, esWeb: true),
-      'https://anet.esculapiosis.com/TrazabilidadApi',
+      'https://appsintranet.esculapiosis.com/TrazabilidadManillas',
     );
   });
 

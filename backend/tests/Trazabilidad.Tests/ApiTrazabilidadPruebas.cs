@@ -41,6 +41,17 @@ public class ApiTrazabilidadPruebas
     }
 
     [Fact]
+    public async Task La_pagina_no_exige_clave()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+
+        var respuesta = await cliente.GetAsync("/");
+
+        Assert.NotEqual(HttpStatusCode.Unauthorized, respuesta.StatusCode);
+    }
+
+    [Fact]
     public async Task Debe_rechazar_la_lectura_sin_clave()
     {
         await using var fabrica = new FabricaApi();

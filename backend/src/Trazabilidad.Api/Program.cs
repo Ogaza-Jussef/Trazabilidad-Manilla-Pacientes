@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.StaticFiles;
 using Trazabilidad.Api;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,25 +19,34 @@ Composicion.Registrar(builder);
 
 var app = builder.Build();
 
-app.Use((contexto, siguiente) =>
-{
-    if (HttpMethods.IsOptions(contexto.Request.Method))
-    {
-        AgregarCors(contexto);
-        contexto.Response.StatusCode = StatusCodes.Status204NoContent;
-        return Task.CompletedTask;
-    }
+var tipos = new FileExtensionContentTypeProvider();
+tipos.Mappings[".wasm"] = "application/wasm";
+tipos.Mappings[".data"] = "application/octet-stream";
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = tipos });
 
-    contexto.Response.OnStarting(() =>
+app.UseWhen(EsLlamadaDeLaApi, rama =>
+{
+    rama.Use((contexto, siguiente) =>
     {
-        AgregarCors(contexto);
-        return Task.CompletedTask;
+        if (HttpMethods.IsOptions(contexto.Request.Method))
+        {
+            AgregarCors(contexto);
+            contexto.Response.StatusCode = StatusCodes.Status204NoContent;
+            return Task.CompletedTask;
+        }
+
+        contexto.Response.OnStarting(() =>
+        {
+            AgregarCors(contexto);
+            return Task.CompletedTask;
+        });
+        return siguiente();
     });
-    return siguiente();
+    rama.UseMiddleware<RegistroSolicitudMiddleware>();
+    rama.UseMiddleware<ManejadorErroresMiddleware>();
+    rama.UseMiddleware<LlaveApiMiddleware>();
 });
-app.UseMiddleware<RegistroSolicitudMiddleware>();
-app.UseMiddleware<ManejadorErroresMiddleware>();
-app.UseMiddleware<LlaveApiMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/health/ready", (IConfiguration configuracion) =>
@@ -49,8 +59,31 @@ app.MapGet("/health/ready", (IConfiguration configuracion) =>
 });
 
 RutasTrazabilidad.Map(app);
+app.MapFallback(async contexto =>
+{
+    if (EsLlamadaDeLaApi(contexto))
+    {
+        contexto.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    var raizWeb = app.Environment.WebRootPath;
+    var pagina = raizWeb is null ? null : Path.Combine(raizWeb, "index.html");
+    if (pagina is null || !File.Exists(pagina))
+    {
+        contexto.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    contexto.Response.ContentType = "text/html; charset=utf-8";
+    await contexto.Response.SendFileAsync(pagina);
+});
 
 app.Run();
+
+static bool EsLlamadaDeLaApi(HttpContext contexto) =>
+    contexto.Request.Path.StartsWithSegments("/api")
+    || contexto.Request.Path.StartsWithSegments("/health");
 
 static void AgregarCors(HttpContext contexto)
 {
