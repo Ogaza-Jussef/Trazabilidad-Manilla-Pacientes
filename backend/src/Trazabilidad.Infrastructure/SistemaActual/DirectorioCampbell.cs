@@ -7,7 +7,7 @@ using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.SistemaActual;
 
-public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores
+public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla
 {
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -59,7 +59,103 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         if (empresas.Count == 0)
             return null;
 
-        return new UsuarioAutenticado(usuario, empresas);
+        return new UsuarioAutenticado(usuario, empresas, token);
+    }
+
+    public async Task<IReadOnlyList<ServicioManilla>> Listar(
+        string tokenConexion,
+        string usuario,
+        string empresa,
+        CancellationToken cancelacion)
+    {
+        if (string.IsNullOrWhiteSpace(tokenConexion))
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
+        using var solicitud = new HttpRequestMessage(HttpMethod.Post, "api/Usuarios/obtener-ApiTrzServiciosManilla")
+        {
+            Content = JsonContent.Create(
+                new ServiciosManillaRequestDto { Empresa = empresa, Usuario = usuario },
+                options: Json),
+        };
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenConexion);
+
+        using var respuesta = await _cliente.SendAsync(solicitud, cancelacion);
+        if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new ErrorNoAutenticado("No se pudo validar el usuario.");
+
+        if (!respuesta.IsSuccessStatusCode)
+            throw new ErrorDependencia("No se pudieron consultar los servicios del usuario.");
+
+        string texto;
+        try
+        {
+            texto = await respuesta.Content.ReadAsStringAsync(cancelacion);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new ErrorDependencia("La lista de servicios no se pudo leer.");
+        }
+
+        return LeerServicios(texto);
+    }
+
+    private static IReadOnlyList<ServicioManilla> LeerServicios(string texto)
+    {
+        JsonDocument documento;
+        try
+        {
+            documento = JsonDocument.Parse(texto);
+        }
+        catch (JsonException)
+        {
+            throw new ErrorDependencia("La lista de servicios no se pudo leer.");
+        }
+
+        using (documento)
+        {
+            if (documento.RootElement.ValueKind != JsonValueKind.Array)
+                throw new ErrorDependencia("La lista de servicios no se pudo leer.");
+
+            var servicios = new List<ServicioManilla>();
+            var vistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in documento.RootElement.EnumerateArray())
+            {
+                var nombre = NombreServicio(item);
+                if (nombre.Length is < 1 or > 120 || !vistos.Add(nombre))
+                    continue;
+                servicios.Add(new ServicioManilla(nombre));
+            }
+
+            return servicios;
+        }
+    }
+
+    private static string NombreServicio(JsonElement item)
+    {
+        if (item.ValueKind == JsonValueKind.String)
+            return item.GetString()?.Trim() ?? "";
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return "";
+
+        foreach (var campo in new[] { "Descripcion", "Nombre", "Nombre_Servicio", "Servicio", "Id_Servicio" })
+        {
+            foreach (var propiedad in item.EnumerateObject())
+            {
+                if (!string.Equals(propiedad.Name, campo, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var texto = propiedad.Value.ValueKind switch
+                {
+                    JsonValueKind.String => propiedad.Value.GetString()?.Trim() ?? "",
+                    JsonValueKind.Number => propiedad.Value.GetRawText(),
+                    _ => "",
+                };
+                if (texto.Length > 0)
+                    return texto;
+            }
+        }
+
+        return "";
     }
 
     private async Task<IReadOnlyList<ServidorCampbell>> ObtenerServidores(
@@ -218,6 +314,13 @@ public sealed class DirectorioCampbell : IDirectorioUsuarios, ICatalogoServidore
         public string Usuario { get; set; } = "";
 
         public string PasswordUsu { get; set; } = "";
+    }
+
+    private sealed class ServiciosManillaRequestDto
+    {
+        public string Empresa { get; set; } = "";
+
+        public string Usuario { get; set; } = "";
     }
 
     private sealed class EmpresaDto

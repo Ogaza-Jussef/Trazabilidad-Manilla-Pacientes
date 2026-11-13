@@ -52,23 +52,27 @@ public static class Composicion
             });
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioCampbell>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioCampbell>());
+            builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioCampbell>());
         }
         else if (builder.Environment.IsProduction())
         {
             builder.Services.AddSingleton<DirectorioUsuariosPendiente>();
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
+            builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioUsuariosPendiente>());
         }
         else
         {
             builder.Services.AddSingleton<DirectorioUsuariosMemoria>();
             builder.Services.AddSingleton<IDirectorioUsuarios>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
             builder.Services.AddSingleton<ICatalogoServidores>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
+            builder.Services.AddSingleton<IServiciosManilla>(sp => sp.GetRequiredService<DirectorioUsuariosMemoria>());
         }
 
         builder.Services.AddSingleton<IAlmacenSesiones, AlmacenSesionesMemoria>();
         builder.Services.AddSingleton<IniciarSesion>();
         builder.Services.AddSingleton<ListarServidores>();
+        builder.Services.AddSingleton<ListarServiciosManilla>();
         builder.Services.AddSingleton<RegistrarLectura>();
         builder.Services.AddSingleton<ConsultarPaciente>();
         builder.Services.AddSingleton<ListarTrazabilidad>();

@@ -114,6 +114,59 @@ public class SesionPruebas
         Assert.Equal(HttpStatusCode.Forbidden, respuesta.StatusCode);
     }
 
+    [Fact]
+    public async Task Debe_listar_los_servicios_de_la_empresa_elegida()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+        var ingreso = await cliente.PostAsJsonAsync("/api/v1/sesiones", new
+        {
+            usuario = "operador",
+            contrasena = "operador",
+            servidor = "Desarrollo",
+        });
+        var token = (await Leer(ingreso)).GetProperty("token").GetString();
+        var solicitud = new HttpRequestMessage(HttpMethod.Get, "/api/v1/servicios-manilla?empresa=C30");
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var respuesta = await cliente.SendAsync(solicitud);
+
+        Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
+        var json = await Leer(respuesta);
+        Assert.Equal("Colocación de manilla", json.GetProperty("items")[0].GetProperty("nombre").GetString());
+    }
+
+    [Fact]
+    public async Task Debe_negar_los_servicios_de_una_empresa_no_asociada()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+        var ingreso = await cliente.PostAsJsonAsync("/api/v1/sesiones", new
+        {
+            usuario = "operador",
+            contrasena = "operador",
+            servidor = "Desarrollo",
+        });
+        var token = (await Leer(ingreso)).GetProperty("token").GetString();
+        var solicitud = new HttpRequestMessage(HttpMethod.Get, "/api/v1/servicios-manilla?empresa=C99");
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var respuesta = await cliente.SendAsync(solicitud);
+
+        Assert.Equal(HttpStatusCode.Forbidden, respuesta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Debe_pedir_sesion_para_listar_los_servicios()
+    {
+        await using var fabrica = new FabricaApi();
+        using var cliente = fabrica.CreateClient();
+
+        var respuesta = await cliente.GetAsync("/api/v1/servicios-manilla?empresa=C30");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, respuesta.StatusCode);
+    }
+
     private static async Task<JsonElement> Leer(HttpResponseMessage respuesta)
     {
         using var documento = await JsonDocument.ParseAsync(await respuesta.Content.ReadAsStreamAsync());

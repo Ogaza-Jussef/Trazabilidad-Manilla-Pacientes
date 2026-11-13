@@ -83,6 +83,24 @@ class ApiTrazabilidad {
     );
   }
 
+  /// Servicios de manilla del usuario en la empresa que acaba de elegir.
+  Future<ResultadoApi<List<String>>> listarServiciosManilla(String codigoEmpresa) {
+    final uri = Uri.parse('${ajustes.urlBase}/api/v1/servicios-manilla').replace(
+      queryParameters: {'empresa': codigoEmpresa},
+    );
+    return _enviar(
+      () => _cliente.get(uri, headers: _encabezados).timeout(_espera),
+      (json, estado) {
+        final items = json['items'];
+        if (items is! List) return const <String>[];
+        return [
+          for (final item in items.whereType<Map>())
+            if ((item['nombre'] ?? '').toString().trim().isNotEmpty) item['nombre'].toString().trim(),
+        ];
+      },
+    );
+  }
+
   Future<ResultadoApi<Ingreso>> _iniciarSesionLocal(String usuario, String contrasena, String servidor) {
     return _enviar(
       () => _cliente

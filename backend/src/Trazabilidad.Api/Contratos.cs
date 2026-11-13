@@ -25,6 +25,8 @@ public sealed record PaginaResponse(
 
 public sealed record ServicioResponse(int Orden, string Nombre, string Area);
 
+public sealed record ServicioManillaResponse(string Nombre);
+
 public sealed record EmpresaResponse(string Codigo, string Nombre);
 
 public sealed record SesionResponse(string Token, string Usuario, IReadOnlyList<EmpresaResponse> Empresas);

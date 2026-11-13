@@ -6,13 +6,16 @@ public sealed record Empresa(string Codigo, string Nombre);
 
 public sealed record ServidorPublico(string Nombre);
 
-public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas);
+public sealed record UsuarioAutenticado(string Usuario, IReadOnlyList<Empresa> Empresas, string TokenConexion);
+
+public sealed record ServicioManilla(string Nombre);
 
 public sealed record SesionActiva(
     string Token,
     string Usuario,
     IReadOnlyList<Empresa> Empresas,
-    string Servidor);
+    string Servidor,
+    string TokenConexion);
 
 public interface IDirectorioUsuarios
 {
@@ -26,6 +29,15 @@ public interface IDirectorioUsuarios
 public interface ICatalogoServidores
 {
     Task<IReadOnlyList<ServidorPublico>> Listar(string usuario, string contrasena, CancellationToken cancelacion);
+}
+
+public interface IServiciosManilla
+{
+    Task<IReadOnlyList<ServicioManilla>> Listar(
+        string tokenConexion,
+        string usuario,
+        string empresa,
+        CancellationToken cancelacion);
 }
 
 public interface IAlmacenSesiones

@@ -13,6 +13,7 @@ public static class RutasTrazabilidad
         grupo.MapPost("/servidores", ListarServidoresAsync);
         grupo.MapPost("/sesiones", IniciarSesionAsync);
 
+        grupo.MapGet("/servicios-manilla", ListarServiciosManillaAsync);
         grupo.MapGet("/servicios", () =>
         {
             var items = ServiciosLectura.Orden
@@ -88,6 +89,23 @@ public static class RutasTrazabilidad
         return Results.Ok(new
         {
             items = servidores.Select(servidor => new ServidorPublicoResponse(servidor.Nombre)).ToArray(),
+        });
+    }
+
+    private static async Task<IResult> ListarServiciosManillaAsync(
+        string? empresa,
+        HttpContext contexto,
+        ListarServiciosManilla casoUso,
+        CancellationToken cancelacion)
+    {
+        var sesion = contexto.Items["Sesion"] as SesionActiva;
+        if (sesion is null)
+            throw new ErrorNoAutenticado("Falta la clave de acceso.");
+
+        var servicios = await casoUso.Ejecutar(sesion, empresa, cancelacion);
+        return Results.Ok(new
+        {
+            items = servicios.Select(servicio => new ServicioManillaResponse(servicio.Nombre)).ToArray(),
         });
     }
 

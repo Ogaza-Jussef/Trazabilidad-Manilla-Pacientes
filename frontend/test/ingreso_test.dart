@@ -65,4 +65,34 @@ void main() {
     expect(ingreso.empresas.single.codigo, 'C30');
     expect(ingreso.empresas.single.nombre, 'Fundacion Campbell');
   });
+
+  test('pide los servicios de la empresa elegida', () async {
+    final cliente = MockClient((solicitud) async {
+      expect(solicitud.method, 'GET');
+      expect(solicitud.url.path, '/api/v1/servicios-manilla');
+      expect(solicitud.url.queryParameters['empresa'], 'C30');
+      expect(solicitud.headers['Authorization'], 'Bearer sesion-local');
+      return _json({
+        'items': [
+          {'nombre': 'Colocación de manilla'},
+          {'nombre': 'Paso a Qx'},
+        ],
+      });
+    });
+    final api = ApiTrazabilidad(
+      const AjustesPuesto(
+        baseUrl: 'http://api.local:5080',
+        token: 'sesion-local',
+        usuario: 'jogaza',
+        codigoEmpresa: 'C30',
+        nombreEmpresa: 'Fundacion Campbell',
+        servicio: '',
+      ),
+      cliente: cliente,
+    );
+
+    final resultado = await api.listarServiciosManilla('C30');
+
+    expect((resultado as OkApi<List<String>>).valor, ['Colocación de manilla', 'Paso a Qx']);
+  });
 }

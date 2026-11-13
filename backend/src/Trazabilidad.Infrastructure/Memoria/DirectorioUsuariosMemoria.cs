@@ -1,17 +1,18 @@
 using System.Security.Cryptography;
 using System.Text;
 using Trazabilidad.Application;
+using Trazabilidad.Domain;
 
 namespace Trazabilidad.Infrastructure.Memoria;
 
-public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores
+public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoServidores, IServiciosManilla
 {
     private readonly UsuarioAutenticado _usuario;
     private readonly byte[] _contrasena;
 
     public DirectorioUsuariosMemoria()
     {
-        _usuario = new UsuarioAutenticado(SemillaDesarrollo.Usuario, SemillaDesarrollo.Empresas);
+        _usuario = new UsuarioAutenticado(SemillaDesarrollo.Usuario, SemillaDesarrollo.Empresas, "");
         _contrasena = Encoding.UTF8.GetBytes(SemillaDesarrollo.Contrasena);
     }
 
@@ -37,4 +38,12 @@ public sealed class DirectorioUsuariosMemoria : IDirectorioUsuarios, ICatalogoSe
         var claveOk = clave.Length == _contrasena.Length && CryptographicOperations.FixedTimeEquals(clave, _contrasena);
         return Task.FromResult(usuarioOk && claveOk ? _usuario : null);
     }
+
+    public Task<IReadOnlyList<ServicioManilla>> Listar(
+        string tokenConexion,
+        string usuario,
+        string empresa,
+        CancellationToken cancelacion) =>
+        Task.FromResult<IReadOnlyList<ServicioManilla>>(
+            ServiciosLectura.Orden.Select(servicio => new ServicioManilla(servicio.Nombre)).ToArray());
 }

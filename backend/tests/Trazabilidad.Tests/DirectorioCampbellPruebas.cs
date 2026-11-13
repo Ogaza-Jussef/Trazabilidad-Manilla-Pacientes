@@ -102,6 +102,43 @@ public class DirectorioCampbellPruebas
         var empresa = Assert.Single(usuario!.Empresas);
         Assert.Equal("C30", empresa.Codigo);
         Assert.Equal("Fundacion Campbell", empresa.Nombre);
+        Assert.Equal("token-sede", usuario.TokenConexion);
+    }
+
+    [Fact]
+    public async Task Debe_pedir_los_servicios_de_la_empresa_con_el_token_de_la_sede()
+    {
+        var controlador = new Controlador(async solicitud =>
+        {
+            Assert.EndsWith("/api/Usuarios/obtener-ApiTrzServiciosManilla", solicitud.RequestUri?.AbsolutePath, StringComparison.Ordinal);
+            Assert.Equal("Bearer", solicitud.Headers.Authorization?.Scheme);
+            Assert.Equal("token-sede", solicitud.Headers.Authorization?.Parameter);
+            var cuerpo = await LeerCuerpo(solicitud);
+            Assert.Equal("C30", cuerpo.GetProperty("Empresa").GetString());
+            Assert.Equal("ana", cuerpo.GetProperty("Usuario").GetString());
+            return Json(HttpStatusCode.OK, new[]
+            {
+                new { Id_Servicio = "2", Descripcion = "Colocación de manilla" },
+                new { Id_Servicio = "3", Descripcion = "Paso a Qx" },
+            });
+        });
+        var directorio = Directorio(controlador);
+
+        var servicios = await directorio.Listar("token-sede", "ana", "C30", CancellationToken.None);
+
+        Assert.Equal(["Colocación de manilla", "Paso a Qx"], servicios.Select(servicio => servicio.Nombre).ToArray());
+    }
+
+    [Fact]
+    public async Task Debe_avisar_si_campbell_no_puede_listar_los_servicios()
+    {
+        var controlador = new Controlador(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)));
+        var directorio = Directorio(controlador);
+
+        var error = await Assert.ThrowsAsync<ErrorDependencia>(
+            () => directorio.Listar("token-sede", "ana", "C30", CancellationToken.None));
+
+        Assert.Equal("No se pudieron consultar los servicios del usuario.", error.Message);
     }
 
     [Fact]

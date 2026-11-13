@@ -147,6 +147,7 @@ Rutas públicas: `GET /health`, `GET /health/ready`, `POST /api/v1/servidores` y
 
 1. Con usuario y contraseña, `POST api/authtoken/tokenjwt` y, con ese token, `GET api/Usuarios/obtener-ApiServidores`. La lista trae los nombres, entre ellos Campbell, y no depende de una IP fija.
 2. Al entrar, `POST api/authtoken/tokenjwt` con la IP del servidor que eligió la persona y `POST api/Usuarios/obtener-ApiUsuariosxEmpresas` con ese token.
+3. Al elegir la empresa y pulsar Entrar, `GET /api/v1/servicios-manilla?empresa=C30`. La API llama `POST api/Usuarios/obtener-ApiTrzServiciosManilla` con esa empresa, el usuario y el token del servidor.
 
 El resto pide `Authorization: Bearer {token}`. En pacientes y trazabilidad, si el token es de sesión, también pide `X-Codigo-Empresa` y ese código tiene que estar entre las empresas del usuario. Una clave de API, si está configurada, entra sin esa comprobación de empresa.
 
