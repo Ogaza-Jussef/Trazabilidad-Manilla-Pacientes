@@ -17,7 +17,7 @@ public sealed class ConsultarPaciente
         if (codigo is null)
         {
             throw new ErrorValidacion(
-                "El código QR debe tener la forma empresa-caso, por ejemplo C30-100001.",
+                "El código es la empresa, un guion y el consecutivo del caso. Por ejemplo C30-1.",
                 new DetalleValidacion("codigoQr", "formato"));
         }
 

@@ -1,6 +1,7 @@
 ﻿# Arma una sola carpeta para la aplicación IIS /TrazabilidadManillas.
-# En el mismo sitio HTTPS, grupo de aplicaciones propio y sin código administrado.
-# Requiere el Hosting Bundle de .NET 9. El grupo necesita escribir en logs.
+# El proceso de la API arranca aparte: el sitio padre es ASP.NET y tumba el grupo si comparten proceso.
+# Requiere el Hosting Bundle de .NET 9 y, en Windows Server 2012 R2, Visual C++ 2015-2022 x64.
+# El grupo necesita escribir en logs.
 # El entorno Hospital no es Production: así sigue la lista local de pacientes de prueba.
 # La página llama a /TrazabilidadManillas/api/v1/... en ese mismo sitio.
 
@@ -34,21 +35,28 @@ finally {
 $www = Join-Path $sitio "wwwroot"
 Copy-Item (Join-Path $raiz "frontend_web\build\web") $www -Recurse
 Remove-Item (Join-Path $www "web.config") -Force -ErrorAction SilentlyContinue
+Copy-Item (Join-Path $PSScriptRoot "reparar-iis.ps1") (Join-Path $salida "reparar-iis.ps1") -Force
 
 @'
 Trazabilidad de manillas
 
-Requisitos
-- IIS
-- Hosting Bundle de .NET 9
-- La aplicación ya existe en /TrazabilidadManillas
+El navegador recibe 503 porque el grupo de esta aplicación se detuvo.
+El sitio padre es ASP.NET. Esta API arranca en un proceso aparte.
+
+Antes de copiar, en el servidor
+1. Instala Visual C++ 2015-2022 x64:
+   https://aka.ms/vs/17/release/vc_redist.x64.exe
+   En IIS 8.5, sin esto el proceso se cae y el sitio responde 503.
+2. Instala el Hosting Bundle de .NET 9 y reinicia IIS.
+3. Ejecuta reparar-iis.ps1 como administrador.
+   Crea el grupo TrazabilidadManillas, lo inicia y lo asigna a la aplicación.
+   El grupo del sitio padre no se toca.
 
 Pasos
 1. Vacía la carpeta física de la aplicación /TrazabilidadManillas.
 2. Copia ahí todo el contenido de la carpeta TrazabilidadManillas de este zip.
-3. Asígnale un grupo de aplicaciones propio, sin código administrado.
-   No uses el grupo del sitio padre.
-4. Dale a ese grupo permiso de escritura sobre la carpeta logs.
+3. Dale al grupo TrazabilidadManillas permiso de escritura sobre la carpeta logs.
+4. Vuelve a ejecutar reparar-iis.ps1 para arrancar el grupo.
 
 Abrir
 https://appsintranet.esculapiosis.com/TrazabilidadManillas/

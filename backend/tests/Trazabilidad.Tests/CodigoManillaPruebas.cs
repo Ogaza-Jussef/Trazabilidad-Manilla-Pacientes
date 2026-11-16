@@ -5,6 +5,7 @@ namespace Trazabilidad.Tests;
 public class CodigoManillaPruebas
 {
     [Theory]
+    [InlineData("C30-1", "C30", "1")]
     [InlineData("C30-100001", "C30", "100001")]
     [InlineData(" c30-100001 ", "C30", "100001")]
     public void Debe_separar_empresa_y_caso(string bruto, string empresa, string caso)
@@ -21,6 +22,8 @@ public class CodigoManillaPruebas
     [InlineData("100001")]
     [InlineData("C30-")]
     [InlineData("C30-12A")]
+    [InlineData("C30-0")]
+    [InlineData("C30-01")]
     [InlineData("C30-100001-1")]
     public void Debe_rechazar_un_texto_que_no_es_manilla(string bruto)
     {

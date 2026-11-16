@@ -23,12 +23,10 @@ public sealed class ListarTrazabilidad
         string? cursor,
         CancellationToken cancelacion)
     {
-        if (string.IsNullOrWhiteSpace(numeroCaso)
-            || numeroCaso.Length > 20
-            || !numeroCaso.All(char.IsDigit))
+        if (string.IsNullOrWhiteSpace(numeroCaso) || !CodigoManilla.EsConsecutivo(numeroCaso))
         {
             throw new ErrorValidacion(
-                "El número de caso es obligatorio y numérico.",
+                "El número de caso es el consecutivo del ingreso, desde 1.",
                 new DetalleValidacion("numeroCaso", "formato"));
         }
 
