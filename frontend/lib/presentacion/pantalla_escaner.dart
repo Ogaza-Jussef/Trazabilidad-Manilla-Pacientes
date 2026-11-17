@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../datos/ajustes_puesto.dart';
 import '../datos/api_trazabilidad.dart';
 import '../dominio/codigo_manilla.dart';
 import '../tema/tema_sis.dart';
+import 'camara_manilla.dart';
 import 'pantalla_confirmacion.dart';
 import 'pantalla_puesto.dart';
 import 'widgets_sis/widgets_sis.dart';
@@ -28,14 +28,9 @@ class PantallaEscaner extends StatefulWidget {
 
 class _PantallaEscanerState extends State<PantallaEscaner> {
   final _codigo = TextEditingController();
-  final _camara = MobileScannerController(
-    facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.normal,
-    formats: const [BarcodeFormat.qrCode],
-  );
   var _ocupado = false;
-  var _yaAcercado = false;
   String? _error;
+  String? _ultimoAjeno;
 
   bool get _conCamara =>
       kIsWeb ||
@@ -43,23 +38,35 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
       defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
-  void initState() {
-    super.initState();
-    if (!kIsWeb) _camara.addListener(_acercarSiHaceFalta);
-  }
-
-  @override
   void dispose() {
-    if (!kIsWeb) _camara.removeListener(_acercarSiHaceFalta);
-    _camara.dispose();
     _codigo.dispose();
     super.dispose();
   }
 
-  void _acercarSiHaceFalta() {
-    if (_yaAcercado || !_camara.value.isRunning) return;
-    _yaAcercado = true;
-    _camara.setZoomScale(0.5);
+  void _alDetectarQr(String valor) {
+    if (_ocupado) return;
+    final codigo = CodigoManilla.leer(
+      valor,
+      empresaSiSoloHayCaso: widget.ajustes.codigoEmpresa,
+    );
+    if (codigo == null) {
+      final texto = valor.trim().toLowerCase();
+      if (texto.startsWith('http://') || texto.startsWith('https://')) return;
+      if (valor == _ultimoAjeno) return;
+      _ultimoAjeno = valor;
+      setState(() {
+        _codigo.text = valor.trim();
+        _error = 'Ese QR no es el de la manilla. El caso es el consecutivo, por ejemplo C30-1.';
+      });
+      return;
+    }
+    if (codigo.codigoEmpresa != widget.ajustes.codigoEmpresa) {
+      setState(() => _error = 'Esta manilla es de ${codigo.codigoEmpresa}. El puesto está en ${widget.ajustes.nombreEmpresa}.');
+      return;
+    }
+    _ultimoAjeno = null;
+    _codigo.text = codigo.texto;
+    _continuar();
   }
 
   Future<void> _cambiarPuesto() async {
@@ -165,7 +172,7 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Acerca la manilla hasta que el QR llene el cuadro, o escribe el consecutivo del caso.',
+                'Centra solo el QR de la manilla. Los demás QR, como facturas, se ignoran.',
                 style: FuentesSis.inter(tamano: 14, color: ColoresSis.suave),
               ),
               if (_conCamara) ...[
@@ -180,39 +187,15 @@ class _PantallaEscanerState extends State<PantallaEscaner> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final alto = constraints.maxWidth.clamp(300.0, 520.0);
-                        final cuadro = alto * 0.46;
-                        final ventana = Rect.fromCenter(
-                          center: Offset(constraints.maxWidth / 2, alto / 2),
-                          width: cuadro,
-                          height: cuadro,
-                        );
+                        final cuadro = alto * 0.34;
                         return SizedBox(
                           height: alto,
-                          child: MobileScanner(
-                            controller: _camara,
-                            fit: BoxFit.cover,
-                            scanWindow: ventana,
-                            overlayBuilder: (context, _) => _MarcoQr(lado: cuadro),
-                            errorBuilder: (context, error, child) => const ColoredBox(
-                              color: Color(0xFF0A2342),
-                              child: Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text(
-                                    'No se pudo abrir la cámara. Escribe el número de caso.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            onDetect: (captura) {
-                              if (_ocupado || captura.barcodes.isEmpty) return;
-                              final valor = captura.barcodes.first.rawValue;
-                              if (valor == null || valor.isEmpty) return;
-                              _codigo.text = valor;
-                              _continuar();
-                            },
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CamaraManilla(alDetectar: _alDetectarQr),
+                              _MarcoQr(lado: cuadro),
+                            ],
                           ),
                         );
                       },
@@ -273,7 +256,7 @@ class _MarcoQr extends StatelessWidget {
           right: 12,
           bottom: 12,
           child: Text(
-            'Acerca la manilla hasta que el QR llene el cuadro',
+            'Solo se lee el QR de la manilla dentro del cuadro',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
           ),

@@ -21,4 +21,14 @@ void main() {
     expect(CodigoManilla.leer('C30-ABC'), isNull);
     expect(CodigoManilla.leer('0', empresaSiSoloHayCaso: 'C30'), isNull);
   });
+
+  test('un QR de factura no es el caso del paciente', () {
+    expect(
+      CodigoManilla.leer(
+        'https://catalogo-vpfe.dian.gov.co/document/123456',
+        empresaSiSoloHayCaso: 'C30',
+      ),
+      isNull,
+    );
+  });
 }
